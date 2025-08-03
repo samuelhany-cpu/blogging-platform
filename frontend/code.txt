@@ -1,0 +1,1234 @@
+The following is a digest of the repository "frontend".
+This digest is designed to be easily parsed by Large Language Models.
+
+--- SUMMARY ---
+Repository: frontend
+Files Analyzed: 26
+Total Text Size: 34.64 KB
+Estimated Tokens (text only): ~10,147
+
+--- DIRECTORY STRUCTURE ---
+frontend/
+├── src/
+│   ├── api/
+│   │   └── user.js
+│   ├── components/
+│   │   ├── ArticleCard.jsx
+│   │   ├── CommentSection.jsx
+│   │   └── Navbar.jsx
+│   ├── context/
+│   │   └── AuthContext.jsx
+│   ├── pages/
+│   │   ├── ArticleDetails.jsx
+│   │   ├── ArticleForm.jsx
+│   │   ├── Articles.jsx
+│   │   ├── Home.jsx
+│   │   ├── Login.jsx
+│   │   ├── Register.jsx
+│   │   └── UserProfile.jsx
+│   ├── services/
+│   │   └── api.js
+│   ├── utils/
+│   │   └── axiosInstance.js
+│   ├── App.css
+│   ├── App.js
+│   ├── App.test.js
+│   ├── index.css
+│   ├── index.js
+│   ├── logo.svg
+│   ├── reportWebVitals.js
+│   └── setupTests.js
+├── package.json
+├── postcss.config.js
+├── README.md
+└── tailwind.config.js
+
+
+--- FILE CONTENTS ---
+============================================================
+FILE: src/api/user.js
+============================================================
+import axios from '../utils/axiosInstance';
+
+export const fetchUserProfile = (id, token) => {
+  return axios.get(`/users/${id}/profile`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+};
+
+
+============================================================
+FILE: src/components/ArticleCard.jsx
+============================================================
+import React from 'react';
+import { Link } from 'react-router-dom';
+
+const ArticleCard = ({ article }) => {
+  return (
+    <div className="bg-white p-4 rounded shadow hover:shadow-lg transition">
+      <h2 className="text-xl font-bold mb-2">{article.title}</h2>
+      <p className="text-gray-500 text-sm mb-2">Category: {article.category}</p>
+      <p className="mb-4 text-gray-700 line-clamp-3">{article.content.slice(0, 150)}...</p>
+      <Link
+        to={`/articles/${article.id}`}
+        className="text-blue-600 hover:underline font-medium"
+      >
+        Read More
+      </Link>
+    </div>
+  );
+};
+
+export default ArticleCard;
+
+============================================================
+FILE: src/components/CommentSection.jsx
+============================================================
+import React, { useEffect, useState } from 'react';
+import axios from '../utils/axiosInstance';
+import { useAuth } from '../context/AuthContext';
+import { FaSpinner } from 'react-icons/fa';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const CommentSection = ({ articleId }) => {
+  const { user, token } = useAuth();
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchComments();
+  }, [articleId]);
+
+  const fetchComments = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`/articles/${articleId}/comments`);
+      setComments(res.data);
+    } catch (err) {
+      console.error('Error fetching comments:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCommentSubmit = async (e) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+    try {
+      await axios.post(
+        `/articles/${articleId}/comments`,
+        { content: newComment },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNewComment('');
+      fetchComments();
+    } catch (err) {
+      console.error('Error posting comment:', err);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await axios.delete(`/comments/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchComments();
+    } catch (err) {
+      console.error('Error deleting comment:', err);
+    }
+  };
+
+  const handleEditSubmit = async (id) => {
+    try {
+      await axios.put(
+        `/comments/${id}`,
+        { content: editingContent },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setEditingId(null);
+      fetchComments();
+    } catch (err) {
+      console.error('Error editing comment:', err);
+    }
+  };
+
+  return (
+    <div className="mt-10">
+      <h2 className="text-xl font-semibold mb-4">Comments</h2>
+
+      {loading ? (
+        <div className="flex items-center text-gray-500">
+          <FaSpinner className="animate-spin mr-2" />
+          Loading comments...
+        </div>
+      ) : comments.length === 0 ? (
+        <p className="text-gray-500">No comments yet.</p>
+      ) : (
+        <ul className="mb-6 space-y-4">
+          <AnimatePresence>
+            {comments.map((comment) => (
+              <motion.li
+                key={comment.id}
+                className="border p-3 rounded shadow"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                {editingId === comment.id ? (
+                  <>
+                    <textarea
+                      className="w-full p-2 border rounded mb-2"
+                      rows={2}
+                      value={editingContent}
+                      onChange={(e) => setEditingContent(e.target.value)}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEditSubmit(comment.id)}
+                        className="px-3 py-1 bg-blue-600 text-white rounded"
+                      >
+                        Submit
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="px-3 py-1 bg-gray-500 text-white rounded"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-gray-800 mb-1">{comment.content}</p>
+                    <small className="text-gray-500 block">
+                      by <span className="font-medium">{comment.username || 'Unknown User'}</span>
+                    </small>
+                    {user && (user.id === comment.user_id || user.role === 'admin') && (
+                      <div className="flex gap-3 mt-2">
+                        <button
+                          onClick={() => {
+                            setEditingId(comment.id);
+                            setEditingContent(comment.content);
+                          }}
+                          className="text-yellow-600 hover:underline"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(comment.id)}
+                          className="text-red-600 hover:underline"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+      )}
+
+      {user && (
+        <form onSubmit={handleCommentSubmit}>
+          <textarea
+            className="w-full p-2 border rounded mb-2"
+            placeholder="Write a comment..."
+            rows={3}
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+          >
+            Add Comment
+          </button>
+        </form>
+      )}
+    </div>
+  );
+};
+
+export default CommentSection;
+
+
+============================================================
+FILE: src/components/Navbar.jsx
+============================================================
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import {useAuth} from '../context/AuthContext';
+function Navbar() {
+    const {user,logout} = useAuth(); 
+    const navigate = useNavigate();
+    const isLoggedIn = !!user;
+
+    const handleLogout = () => {
+        logout();            // Clear user & session
+        navigate('/login');  // Redirect to login page
+    };
+
+    console.log('Navbar user:', user);
+
+  return (
+    <nav className="bg-gray-800 text-white px-6 py-4 flex justify-between items-center">
+      <div className="text-xl font-bold">
+        <Link to="/">Blogging Platform</Link>
+      </div>
+      <div className="space-x-4">
+        <Link to="/" className="hover:underline">Home</Link>
+        <Link to="/articles" className="hover:underline">Articles</Link>
+        {isLoggedIn && (
+          <Link
+            to="/articles/new"
+            className="bg-blue-500 px-3 py-1 rounded hover:bg-blue-600"
+          >
+            Add Article
+          </Link>
+        )}
+        {isLoggedIn ? (
+          <>
+            {user?.id && (
+  <Link to={`/users/${user.id}`} className="text-sm text-blue-600 hover:underline">
+    View Profile
+  </Link>
+)}
+            <button onClick={handleLogout} className="bg-red-500 px-3 py-1 rounded hover:bg-red-600">
+              Logout
+            </button>
+          </>
+        ) : (
+          <>
+            <Link to="/login" className="hover:underline">Login</Link>
+            <Link to="/register" className="hover:underline">Register</Link>
+          </>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+export default Navbar;
+
+
+============================================================
+FILE: src/context/AuthContext.jsx
+============================================================
+import React, { createContext, useContext, useState, useEffect } from 'react';
+
+const AuthContext = createContext();
+
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+
+  // 🧠 Load from sessionStorage when app starts
+  useEffect(() => {
+    const savedUser = sessionStorage.getItem('user');
+    const savedToken = sessionStorage.getItem('token');
+
+    if (savedUser && savedToken) {
+      setUser(JSON.parse(savedUser));
+      setToken(savedToken);
+    }
+  }, []);
+
+  // 🔐 Login method
+  const login = (userData, tokenData) => {
+    setUser(userData);
+    setToken(tokenData);
+
+    // Save in sessionStorage
+    sessionStorage.setItem('user', JSON.stringify(userData));
+    sessionStorage.setItem('token', tokenData);
+  };
+
+  // 🔓 Logout method
+  const logout = () => {
+    setUser(null);
+    setToken(null);
+    sessionStorage.clear(); // This clears all session-based info
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, token, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+
+============================================================
+FILE: src/pages/ArticleDetails.jsx
+============================================================
+    import React, { useEffect, useState } from 'react';
+    import { useParams, useNavigate, Link } from 'react-router-dom';
+    import axios from '../utils/axiosInstance';
+    import { useAuth } from '../context/AuthContext';
+    import CommentSection from '../components/CommentSection';
+
+    const ArticleDetails = () => {
+    const { id } = useParams();
+    const { user, token } = useAuth();
+    const navigate = useNavigate();
+
+    const [article, setArticle] = useState(null);
+
+
+    useEffect(() => {
+        fetchArticle();
+    }, [id]);
+
+    const fetchArticle = async () => {
+        try {
+        const res = await axios.get(`/articles/${id}`);
+        setArticle(res.data);
+        } catch (err) {
+        console.error(err);
+        }
+    };
+
+
+    const handleDelete = async () => {
+        try {
+        await axios.delete(`/articles/${id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        navigate('/');
+        } catch (err) {
+        console.error(err);
+        }
+    };
+
+    if (!article) return <div className="text-center mt-10">Loading article...</div>;
+
+    return (
+        <div className="max-w-3xl mx-auto mt-10 p-6 bg-white rounded shadow">
+        <h1 className="text-3xl font-bold mb-2">{article.title}</h1>
+        <p className="text-sm text-gray-500 mb-4">
+    Category: {article.category} | Tags:{' '}
+    {article.tags
+        ? article.tags.split(',').map(tag => tag.trim()).join(', ')
+        : 'No tags'}
+    </p>
+
+        <p className="mb-6">{article.content}</p>
+
+        {(user?.id === article.user_id || user?.role === 'admin') && (
+            <div className="flex space-x-4 mb-6">
+            <Link
+                to={`/edit/${article.id}`}
+                className="px-4 py-1 bg-yellow-400 hover:bg-yellow-500 text-white rounded"
+            >
+                Edit
+            </Link>
+            <button
+                onClick={handleDelete}
+                className="px-4 py-1 bg-red-500 hover:bg-red-600 text-white rounded"
+            >
+                Delete
+            </button>
+            </div>
+        )}
+
+        <hr className="my-6" />
+        <CommentSection articleId={article.id} />
+        </div>
+    );
+    };
+
+    export default ArticleDetails;
+
+
+============================================================
+FILE: src/pages/ArticleForm.jsx
+============================================================
+// src/pages/ArticleForm.jsx
+import React, { useState, useEffect } from 'react';
+import axios from '../utils/axiosInstance';
+import { useNavigate, useParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
+
+const categories = ['Technology', 'Lifestyle', 'Business', 'Education', 'Entertainment'];
+
+const ArticleForm = () => {
+  const { id } = useParams(); // for edit
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [category, setCategory] = useState('');
+  const [tagInput, setTagInput] = useState('');
+  const [tags, setTags] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const navigate = useNavigate();
+
+  const fetchArticle = async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      const res = await axios.get(`/articles/${id}`);
+      const article = res.data;
+      setTitle(article.title);
+      setContent(article.content);
+      setCategory(article.category);
+      setTags(article.tags ? article.tags.split(',').map(tag => tag.trim()) : []);
+      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchArticle();
+  }, [id]);
+
+  const handleTagKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      if (tagInput.trim() && !tags.includes(tagInput.toLowerCase())) {
+        setTags([...tags, tagInput.toLowerCase()]);
+        setTagInput('');
+      }
+    }
+  };
+
+  const removeTag = (tagToRemove) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const token = sessionStorage.getItem('token'); // or sessionStorage.getItem('token')
+
+    const articleData = {
+      title,
+      content,
+      category,
+      tags: tags.join(','),
+    };
+
+    const config = {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
+
+    const response = id
+      ? await axios.put(`/articles/${id}`, articleData, config)
+      : await axios.post('/articles', articleData, config);
+
+    toast.success(`Article ${id ? 'updated' : 'created'} successfully!`);
+    navigate(`/articles/${response.data.id}`);
+  } catch (err) {
+    console.error('❌ Create/Edit Error:', err.response?.data || err.message);
+    toast.error(err.response?.data?.error || 'Something went wrong.');
+  }
+};
+
+
+  return (
+    <div className="max-w-3xl mx-auto p-6">
+      <h2 className="text-2xl font-bold mb-4">{id ? 'Edit' : 'New'} Article</h2>
+
+      {loading ? (
+        <p>Loading article...</p>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="text"
+            placeholder="Title"
+            className="w-full p-2 border rounded"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+          />
+
+          <textarea
+            placeholder="Content"
+            className="w-full p-2 border rounded h-40"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            required
+          />
+
+          <select
+            className="w-full p-2 border rounded"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            required
+          >
+            <option value="">Select Category</option>
+            {categories.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+
+          <div>
+            <input
+              type="text"
+              placeholder="Add tag and press Enter"
+              className="w-full p-2 border rounded"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleTagKeyDown}
+            />
+            <div className="flex flex-wrap gap-2 mt-2">
+              {tags.map((tag, index) => (
+                <span
+                  key={index}
+                  className="bg-blue-200 text-blue-800 px-2 py-1 rounded-full text-sm flex items-center gap-1"
+                >
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(tag)}
+                    className="ml-1 text-red-500 font-bold"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            {id ? 'Update' : 'Create'} Article
+          </button>
+        </form>
+      )}
+    </div>
+  );
+};
+
+export default ArticleForm;
+
+
+============================================================
+FILE: src/pages/Articles.jsx
+============================================================
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import { Link } from 'react-router-dom';
+
+function Articles() {
+  const [articles, setArticles] = useState([]);
+
+  useEffect(() => {
+    axios.get('http://localhost:5000/api/articles')
+      .then(res => setArticles(res.data))
+      .catch(err => console.error('Error fetching articles:', err));
+  }, []);
+
+  return (
+    <div className="max-w-4xl mx-auto py-6">
+      <h2 className="text-3xl font-bold mb-6 text-center">Latest Articles</h2>
+
+      {articles.length === 0 ? (
+        <p className="text-gray-600 text-center">No articles found.</p>
+      ) : (
+        <div className="space-y-6">
+          {articles.map(article => (
+            <div key={article.id} className="bg-white p-6 rounded shadow-md">
+              <h3 className="text-xl font-semibold">{article.title}</h3>
+              <p className="text-sm text-gray-500">
+                By {article.author || 'Unknown'} • {new Date(article.created_at).toLocaleDateString()}
+              </p>
+              <p className="mt-2 text-gray-700">
+                {article.content.slice(0, 150)}...
+              </p>
+              <Link
+                to={`/articles/${article.id}`}
+                className="text-blue-500 hover:underline mt-2 inline-block"
+              >
+                Read More
+              </Link>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default Articles;
+
+
+============================================================
+FILE: src/pages/Home.jsx
+============================================================
+import React from 'react';
+import { Link } from 'react-router-dom';
+
+function Home() {
+  return (
+    <div className="text-center py-20">
+      <h1 className="text-4xl font-bold text-gray-800 mb-4">Welcome to the Blogging Platform</h1>
+      <p className="text-gray-600 mb-6">Share your thoughts, read great content, and join the community.</p>
+      <Link to="/articles" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded">
+        Browse Articles
+      </Link>
+    </div>
+  );
+}
+
+export default Home;
+
+
+============================================================
+FILE: src/pages/Login.jsx
+============================================================
+import React, { useState } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
+function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+  const { login } = useAuth(); // ✅ use context
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    try {
+      const res = await axios.post('http://localhost:5000/api/auth/login', { email, password });
+      
+      console.log('USER FROM LOGIN:', res.data.user);
+console.log('TOKEN FROM LOGIN:', res.data.token);
+      // ✅ Use context login function
+      login(res.data.user, res.data.token);
+      console.log('Login response:', res.data);
+
+      // ✅ Navigate to article list or homepage
+      navigate('/');
+    } catch (err) {
+      console.error('Login Error:', err);
+      setError(err.response?.data?.message || 'Login failed');
+      
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto mt-20 p-8 bg-white rounded shadow">
+      <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
+      {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <input
+          type="email"
+          className="w-full border px-3 py-2 rounded"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          className="w-full border px-3 py-2 rounded"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded">
+          Login
+        </button>
+      </form>
+    </div>
+  );
+}
+
+export default Login;
+
+
+============================================================
+FILE: src/pages/Register.jsx
+============================================================
+import React, { useState } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+
+function Register() {
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState({
+    username: '',
+    email: '',
+    password: '',
+  });
+
+  const [error, setError] = useState('');
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    try {
+      const res = await axios.post('http://localhost:5000/api/auth/register', form);
+      if (res.status === 201) {
+        navigate('/login');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Registration failed');
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto mt-10 bg-white shadow-md rounded p-6">
+      <h2 className="text-2xl font-semibold mb-6 text-center">Register</h2>
+
+      {error && <p className="text-red-500 mb-4">{error}</p>}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <input
+          type="text"
+          name="username"
+          placeholder="Username"
+          value={form.username}
+          onChange={handleChange}
+          required
+          className="w-full border border-gray-300 p-2 rounded"
+        />
+
+        <input
+          type="email"
+          name="email"
+          placeholder="Email"
+          value={form.email}
+          onChange={handleChange}
+          required
+          className="w-full border border-gray-300 p-2 rounded"
+        />
+
+        <input
+          type="password"
+          name="password"
+          placeholder="Password"
+          value={form.password}
+          onChange={handleChange}
+          required
+          className="w-full border border-gray-300 p-2 rounded"
+        />
+
+        <button
+          type="submit"
+          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+        >
+          Register
+        </button>
+      </form>
+    </div>
+  );
+}
+
+export default Register;
+
+
+============================================================
+FILE: src/pages/UserProfile.jsx
+============================================================
+// src/pages/UserProfile.jsx
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { fetchUserProfile } from '../api/user';
+import { useAuth } from '../context/AuthContext';
+import ArticleCard from '../components/ArticleCard';
+
+const UserProfile = () => {
+  const { userid } = useParams();
+  const { token } = useAuth();
+  const [data, setData] = useState({ articles: [], comments: [] });
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const res = await fetchUserProfile(userid, token);
+        setData(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadProfile();
+  }, [userid, token]);
+
+  return (
+    <div className="max-w-4xl mx-auto mt-10">
+      <h2 className="text-2xl font-bold mb-4">User Profile</h2>
+      <h3 className="text-xl font-semibold mb-2">Articles</h3>
+      {data.articles.length === 0 ? (
+        <p>No articles yet.</p>
+      ) : (
+        data.articles.map((article) => (
+          <ArticleCard key={article.userid} article={article} />
+        ))
+      )}
+
+      <h3 className="text-xl font-semibold mt-6 mb-2">Comments</h3>
+      {data.comments.length === 0 ? (
+        <p>No comments yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {data.comments.map((comment) => (
+            <li key={comment.userid} className="border p-2 rounded">
+              <p>{comment.content}</p>
+              <small>On article userid: {comment.article_userid}</small>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+export default UserProfile;
+
+
+============================================================
+FILE: src/utils/axiosInstance.js
+============================================================
+// src/utils/axiosInstance.js
+import axios from 'axios';
+
+const axiosInstance = axios.create({
+  baseURL: 'http://localhost:5000/api', // Adjust if your backend uses a different port
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Automatically add token if available
+axiosInstance.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export default axiosInstance;
+
+
+============================================================
+FILE: src/App.css
+============================================================
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+
+============================================================
+FILE: src/App.js
+============================================================
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import Articles from './pages/Articles';
+import Register from './pages/Register';
+import Navbar from './components/Navbar';
+import ArticleDetails from './pages/ArticleDetails';
+import ArticleForm  from './pages/ArticleForm';
+import UserProfile from './pages/UserProfile';
+
+function App() {
+  return (
+    <Router>
+      <Navbar />
+      <div className="p-4">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/articles" element={<Articles />} />
+          <Route path="/articles/new" element={<ArticleForm />} />
+          <Route path="/articles/:id/edit" element={<ArticleForm />} />
+          <Route path="/articles/:id" element={<ArticleDetails />} />
+          <Route path="/users/:userid" element={<UserProfile />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+}
+
+export default App;
+
+
+============================================================
+FILE: src/App.test.js
+============================================================
+import { render, screen } from '@testing-library/react';
+import App from './App';
+
+test('renders learn react link', () => {
+  render(<App />);
+  const linkElement = screen.getByText(/learn react/i);
+  expect(linkElement).toBeInTheDocument();
+});
+
+
+============================================================
+FILE: src/index.css
+============================================================
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+============================================================
+FILE: src/index.js
+============================================================
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import { AuthProvider } from './context/AuthContext';
+import { Toaster } from 'react-hot-toast';
+import './index.css';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <AuthProvider>
+        <App />
+        <Toaster />
+    </AuthProvider>
+  </React.StrictMode>
+);
+
+
+============================================================
+FILE: src/logo.svg
+============================================================
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 841.9 595.3"><g fill="#61DAFB"><path d="M666.3 296.5c0-32.5-40.7-63.3-103.1-82.4 14.4-63.6 8-114.2-20.2-130.4-6.5-3.8-14.1-5.6-22.4-5.6v22.3c4.6 0 8.3.9 11.4 2.6 13.6 7.8 19.5 37.5 14.9 75.7-1.1 9.4-2.9 19.3-5.1 29.4-19.6-4.8-41-8.5-63.5-10.9-13.5-18.5-27.5-35.3-41.6-50 32.6-30.3 63.2-46.9 84-46.9V78c-27.5 0-63.5 19.6-99.9 53.6-36.4-33.8-72.4-53.2-99.9-53.2v22.3c20.7 0 51.4 16.5 84 46.6-14 14.7-28 31.4-41.3 49.9-22.6 2.4-44 6.1-63.6 11-2.3-10-4-19.7-5.2-29-4.7-38.2 1.1-67.9 14.6-75.8 3-1.8 6.9-2.6 11.5-2.6V78.5c-8.4 0-16 1.8-22.6 5.6-28.1 16.2-34.4 66.7-19.9 130.1-62.2 19.2-102.7 49.9-102.7 82.3 0 32.5 40.7 63.3 103.1 82.4-14.4 63.6-8 114.2 20.2 130.4 6.5 3.8 14.1 5.6 22.5 5.6 27.5 0 63.5-19.6 99.9-53.6 36.4 33.8 72.4 53.2 99.9 53.2 8.4 0 16-1.8 22.6-5.6 28.1-16.2 34.4-66.7 19.9-130.1 62-19.1 102.5-49.9 102.5-82.3zm-130.2-66.7c-3.7 12.9-8.3 26.2-13.5 39.5-4.1-8-8.4-16-13.1-24-4.6-8-9.5-15.8-14.4-23.4 14.2 2.1 27.9 4.7 41 7.9zm-45.8 106.5c-7.8 13.5-15.8 26.3-24.1 38.2-14.9 1.3-30 2-45.2 2-15.1 0-30.2-.7-45-1.9-8.3-11.9-16.4-24.6-24.2-38-7.6-13.1-14.5-26.4-20.8-39.8 6.2-13.4 13.2-26.8 20.7-39.9 7.8-13.5 15.8-26.3 24.1-38.2 14.9-1.3 30-2 45.2-2 15.1 0 30.2.7 45 1.9 8.3 11.9 16.4 24.6 24.2 38 7.6 13.1 14.5 26.4 20.8 39.8-6.3 13.4-13.2 26.8-20.7 39.9zm32.3-13c5.4 13.4 10 26.8 13.8 39.8-13.1 3.2-26.9 5.9-41.2 8 4.9-7.7 9.8-15.6 14.4-23.7 4.6-8 8.9-16.1 13-24.1zM421.2 430c-9.3-9.6-18.6-20.3-27.8-32 9 .4 18.2.7 27.5.7 9.4 0 18.7-.2 27.8-.7-9 11.7-18.3 22.4-27.5 32zm-74.4-58.9c-14.2-2.1-27.9-4.7-41-7.9 3.7-12.9 8.3-26.2 13.5-39.5 4.1 8 8.4 16 13.1 24 4.7 8 9.5 15.8 14.4 23.4zM420.7 163c9.3 9.6 18.6 20.3 27.8 32-9-.4-18.2-.7-27.5-.7-9.4 0-18.7.2-27.8.7 9-11.7 18.3-22.4 27.5-32zm-74 58.9c-4.9 7.7-9.8 15.6-14.4 23.7-4.6 8-8.9 16-13 24-5.4-13.4-10-26.8-13.8-39.8 13.1-3.1 26.9-5.8 41.2-7.9zm-90.5 125.2c-35.4-15.1-58.3-34.9-58.3-50.6 0-15.7 22.9-35.6 58.3-50.6 8.6-3.7 18-7 27.7-10.1 5.7 19.6 13.2 40 22.5 60.9-9.2 20.8-16.6 41.1-22.2 60.6-9.9-3.1-19.3-6.5-28-10.2zM310 490c-13.6-7.8-19.5-37.5-14.9-75.7 1.1-9.4 2.9-19.3 5.1-29.4 19.6 4.8 41 8.5 63.5 10.9 13.5 18.5 27.5 35.3 41.6 50-32.6 30.3-63.2 46.9-84 46.9-4.5-.1-8.3-1-11.3-2.7zm237.2-76.2c4.7 38.2-1.1 67.9-14.6 75.8-3 1.8-6.9 2.6-11.5 2.6-20.7 0-51.4-16.5-84-46.6 14-14.7 28-31.4 41.3-49.9 22.6-2.4 44-6.1 63.6-11 2.3 10.1 4.1 19.8 5.2 29.1zm38.5-66.7c-8.6 3.7-18 7-27.7 10.1-5.7-19.6-13.2-40-22.5-60.9 9.2-20.8 16.6-41.1 22.2-60.6 9.9 3.1 19.3 6.5 28.1 10.2 35.4 15.1 58.3 34.9 58.3 50.6-.1 15.7-23 35.6-58.4 50.6zM320.8 78.4z"/><circle cx="420.9" cy="296.5" r="45.7"/><path d="M520.5 78.1z"/></g></svg>
+
+============================================================
+FILE: src/reportWebVitals.js
+============================================================
+const reportWebVitals = onPerfEntry => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+
+
+============================================================
+FILE: src/setupTests.js
+============================================================
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';
+
+
+============================================================
+FILE: package.json
+============================================================
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.6.4",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "axios": "^1.11.0",
+    "framer-motion": "^12.23.12",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-hot-toast": "^2.5.2",
+    "react-icons": "^5.5.0",
+    "react-router-dom": "^7.7.1",
+    "react-scripts": "5.0.1",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17"
+  }
+}
+
+
+============================================================
+FILE: postcss.config.js
+============================================================
+module.exports = {
+  plugins: [
+    require('tailwindcss'),
+    require('autoprefixer'),
+  ],
+}
+
+============================================================
+FILE: README.md
+============================================================
+# Getting Started with Create React App
+
+This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+
+## Available Scripts
+
+In the project directory, you can run:
+
+### `npm start`
+
+Runs the app in the development mode.\
+Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+
+The page will reload when you make changes.\
+You may also see any lint errors in the console.
+
+### `npm test`
+
+Launches the test runner in the interactive watch mode.\
+See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+
+### `npm run build`
+
+Builds the app for production to the `build` folder.\
+It correctly bundles React in production mode and optimizes the build for the best performance.
+
+The build is minified and the filenames include the hashes.\
+Your app is ready to be deployed!
+
+See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+
+### `npm run eject`
+
+**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+
+If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+
+Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+
+You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+
+## Learn More
+
+You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+
+To learn React, check out the [React documentation](https://reactjs.org/).
+
+### Code Splitting
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+
+### Analyzing the Bundle Size
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+
+### Making a Progressive Web App
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+
+### Advanced Configuration
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+
+### Deployment
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+
+### `npm run build` fails to minify
+
+This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+
+
+============================================================
+FILE: tailwind.config.js
+============================================================
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    "./src/**/*.{js,jsx,ts,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
