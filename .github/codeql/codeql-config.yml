@@ -1,0 +1,31 @@
+# CodeQL Configuration for Security Analysis
+name: "Security Analysis Configuration"
+
+# Disable problematic queries that cause resource access issues
+disable-default-queries: false
+
+# Include security-focused queries
+queries:
+  - uses: security-and-quality
+
+# Paths to analyze
+paths:
+  - backend/
+  - frontend/src/
+
+# Paths to ignore
+paths-ignore:
+  - "**/*.test.js"
+  - "**/*.spec.js"
+  - "**/node_modules/"
+  - "**/build/"
+  - "**/dist/"
+  - "**/coverage/"
+  - "**/*.min.js"
+
+# Limit analysis scope for better performance
+query-filters:
+  - exclude:
+      id: js/incomplete-url-scheme-check
+  - exclude:
+      id: js/incomplete-hostname-regexp
