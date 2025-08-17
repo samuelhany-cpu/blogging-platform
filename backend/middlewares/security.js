@@ -27,6 +27,20 @@ const helmetConfig = helmet({
     maxAge: 31536000, // 1 year
     includeSubDomains: true,
     preload: true
+  },
+  // Add Permissions-Policy header
+  permissionsPolicy: {
+    camera: [],
+    microphone: [],
+    geolocation: [],
+    notifications: [],
+    push: [],
+    payment: [],
+    usb: [],
+    bluetooth: [],
+    magnetometer: [],
+    gyroscope: [],
+    accelerometer: []
   }
 });
 
@@ -40,8 +54,12 @@ const generalLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Skip rate limiting for successful requests in development
-  skip: (req, res) => process.env.NODE_ENV === 'development' && res.statusCode < 400
+  // Only skip successful GET requests in development
+  skip: (req, res) => {
+    return process.env.NODE_ENV === 'development' && 
+           req.method === 'GET' && 
+           res.statusCode < 400;
+  }
 });
 
 const authLimiter = rateLimit({

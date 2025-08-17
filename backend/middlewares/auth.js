@@ -19,9 +19,10 @@ exports.authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader?.split(" ")[1];
 
-  if (!token) {
+  // 🚨 **CRITICAL FIX**: Always require token for protected routes
+  if (!token || token === 'undefined' || token === 'null' || token.trim() === '') {
     return res.status(401).json({ 
-      error: "Access token missing",
+      error: "Access token missing or invalid",
       code: "TOKEN_MISSING" 
     });
   }
@@ -35,7 +36,24 @@ exports.authenticateToken = (req, res, next) => {
   }
 
   try {
+    // 🚨 **CRITICAL FIX**: Verify JWT_SECRET exists
+    if (!process.env.JWT_SECRET) {
+      console.error('🚨 CRITICAL: JWT_SECRET not configured');
+      return res.status(500).json({ 
+        error: "Server configuration error",
+        code: "CONFIG_ERROR" 
+      });
+    }
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // 🚨 **CRITICAL FIX**: Validate decoded token structure
+    if (!decoded || !decoded.id) {
+      return res.status(403).json({ 
+        error: "Invalid token structure",
+        code: "TOKEN_INVALID_STRUCTURE" 
+      });
+    }
     
     // Check token expiration with grace period
     const now = Math.floor(Date.now() / 1000);
@@ -60,8 +78,13 @@ exports.authenticateToken = (req, res, next) => {
     } else if (error.name === 'TokenExpiredError') {
       errorMessage = "Token expired";
       errorCode = "TOKEN_EXPIRED";
+    } else if (error.name === 'NotBeforeError') {
+      errorMessage = "Token not active";
+      errorCode = "TOKEN_NOT_ACTIVE";
     }
 
+    console.log(`🔒 Auth failed: ${errorMessage} - Token: ${token?.substring(0, 20)}...`);
+    
     return res.status(403).json({ 
       error: errorMessage,
       code: errorCode 

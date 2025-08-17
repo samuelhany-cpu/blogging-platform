@@ -344,7 +344,7 @@ class SecurityTester {
   async testAuthenticationSecurity() {
     this.log('info', '🔐 Testing Authentication Security...');
     
-    // Test JWT token validation
+    // Test JWT token validation on PROTECTED endpoints
     const invalidTokens = [
       'invalid.token.here',
       'Bearer invalid',
@@ -356,14 +356,37 @@ class SecurityTester {
     
     for (const token of invalidTokens) {
       try {
-        await axios.get(`${BASE_URL}/api/articles`, {
+        // Test protected endpoint that requires authentication
+        await axios.post(`${BASE_URL}/api/articles`, {
+          title: 'Test Article',
+          content: 'Test content',
+          category: 'test'
+        }, {
           headers: { Authorization: `Bearer ${token}` }
         });
         this.log('critical', `Invalid token accepted: ${token}`);
       } catch (error) {
         if (error.response?.status === 401 || error.response?.status === 403) {
           this.log('pass', `Invalid token properly rejected: ${token.substring(0, 20)}...`);
+        } else {
+          this.log('warn', `Unexpected response for invalid token: ${error.response?.status}`);
         }
+      }
+    }
+    
+    // Test with completely missing Authorization header
+    try {
+      await axios.post(`${BASE_URL}/api/articles`, {
+        title: 'Test Article',
+        content: 'Test content',
+        category: 'test'
+      });
+      this.log('critical', 'Request without Authorization header was accepted');
+    } catch (error) {
+      if (error.response?.status === 401) {
+        this.log('pass', 'Missing Authorization header properly rejected');
+      } else {
+        this.log('warn', `Unexpected response for missing auth: ${error.response?.status}`);
       }
     }
     
@@ -376,14 +399,35 @@ class SecurityTester {
         });
         
         // Try to use token after logout
-        await axios.get(`${BASE_URL}/api/articles`, {
+        await axios.post(`${BASE_URL}/api/articles`, {
+          title: 'Test Article',
+          content: 'Test content',
+          category: 'test'
+        }, {
           headers: { Authorization: `Bearer ${this.testToken}` }
         });
         
         this.log('critical', 'Token still valid after logout - session not properly invalidated');
-      } catch (error) {
-        if (error.response?.status === 401) {
-          this.log('pass', 'Token properly invalidated after logout');
+      } catch (logoutError) {
+        // If logout endpoint doesn't exist, skip this test
+        if (logoutError.response?.status === 404) {
+          this.log('info', 'Logout endpoint not implemented - skipping session invalidation test');
+        } else {
+          try {
+            // Try to use the token on a protected endpoint
+            await axios.post(`${BASE_URL}/api/articles`, {
+              title: 'Test Article',
+              content: 'Test content',
+              category: 'test'
+            }, {
+              headers: { Authorization: `Bearer ${this.testToken}` }
+            });
+            this.log('warn', 'Token still active - logout may not invalidate session');
+          } catch (error) {
+            if (error.response?.status === 401) {
+              this.log('pass', 'Token properly invalidated after logout');
+            }
+          }
         }
       }
     }
