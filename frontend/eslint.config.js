@@ -4,6 +4,15 @@ const reactHooks = require("eslint-plugin-react-hooks");
 const react = require("eslint-plugin-react");
 
 module.exports = [
+  // Config file itself needs Node.js environment
+  {
+    files: ["eslint.config.js"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
   js.configs.recommended,
   {
     files: ["src/**/*.{js,jsx}"],
@@ -11,6 +20,7 @@ module.exports = [
       globals: {
         ...globals.browser,
         ...globals.es2021,
+        ...globals.node, // Add Node.js globals including process
       },
       ecmaVersion: 2022,
       sourceType: "module",

@@ -1,0 +1,242 @@
+# 🛡️ Security-First CI/CD Pipeline
+name: Security & Quality Checks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  # 🛡️ **1. SECRET SCANNING**
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+          extra_args: --debug --only-verified
+
+  # 🛡️ **2. DEPENDENCY VULNERABILITIES**
+  dependency-scan:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        directory: [backend, frontend]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: ${{ matrix.directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.directory }}
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: ${{ matrix.directory }}
+        run: npm audit --audit-level=moderate
+
+      - name: Snyk Security Scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --file=${{ matrix.directory }}/package.json
+
+  # 🛡️ **3. CODE QUALITY & SECURITY LINTING**
+  security-lint:
+    name: Security Linting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install ESLint Security Plugin
+        run: npm install -g eslint @eslint/eslintrc eslint-plugin-security
+
+      - name: Run Security Linting (Backend)
+        working-directory: backend
+        run: |
+          npx eslint . --ext .js --config .eslintrc-security.js --format json --output-file eslint-security-report.json || true
+
+      - name: Upload Security Lint Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-lint-results
+          path: backend/eslint-security-report.json
+
+  # 🛡️ **4. SAST (Static Application Security Testing)**
+  sast-scan:
+    name: Static Security Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: CodeQL Analysis
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
+  # 🛡️ **5. DOCKER SECURITY SCAN**
+  docker-scan:
+    name: Docker Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: |
+          docker build -t blogging-platform:latest .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'blogging-platform:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # 🛡️ **6. LICENSE COMPLIANCE**
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install license-checker
+        run: npm install -g license-checker
+
+      - name: Check Backend Licenses
+        working-directory: backend
+        run: |
+          npm ci
+          license-checker --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC' --excludePrivatePackages
+
+      - name: Check Frontend Licenses
+        working-directory: frontend
+        run: |
+          npm ci
+          license-checker --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC' --excludePrivatePackages
+
+  # 🛡️ **7. SECURITY TESTS**
+  security-tests:
+    name: Security Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: test123
+          MYSQL_DATABASE: blog_db_test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Backend Dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Run Security Tests
+        working-directory: backend
+        env:
+          NODE_ENV: test
+          DB_HOST: localhost
+          DB_USER: root
+          DB_PASSWORD: test123
+          DB_NAME: blog_db_test
+          JWT_SECRET: test_jwt_secret_for_ci_cd_pipeline_only
+        run: |
+          npm run test -- --testNamePattern="security|auth|validation"
+
+  # 🛡️ **8. PERFORMANCE & LOAD TESTING**
+  load-test:
+    name: Security Load Testing
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Artillery
+        run: npm install -g artillery
+
+      - name: Run Load Tests
+        run: |
+          # Create basic load test for rate limiting
+          echo "config:" > load-test.yml
+          echo "  target: 'http://localhost:5000'" >> load-test.yml
+          echo "  phases:" >> load-test.yml
+          echo "    - duration: 60" >> load-test.yml
+          echo "      arrivalRate: 10" >> load-test.yml
+          echo "scenarios:" >> load-test.yml
+          echo "  - name: 'Rate Limit Test'" >> load-test.yml
+          echo "    requests:" >> load-test.yml
+          echo "      - get:" >> load-test.yml
+          echo "          url: '/api/articles'" >> load-test.yml
+          
+          # This would normally run against a staging environment
+          # artillery run load-test.yml
+
+  # 🛡️ **9. SECURITY REPORTING**
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [secret-scan, dependency-scan, security-lint, sast-scan]
+    if: always()
+    steps:
+      - name: Create Security Summary
+        run: |
+          echo "## 🛡️ Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Scan | ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Security Linting | ${{ needs.security-lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SAST Analysis | ${{ needs.sast-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Generated at: $(date)" >> $GITHUB_STEP_SUMMARY

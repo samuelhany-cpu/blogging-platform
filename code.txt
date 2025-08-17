@@ -4,8 +4,8 @@ This digest is designed to be easily parsed by Large Language Models.
 --- SUMMARY ---
 Repository: blogging-platform
 Files Analyzed: 56
-Total Text Size: 135.51 KB
-Estimated Tokens (text only): ~35,531
+Total Text Size: 158.01 KB
+Estimated Tokens (text only): ~40,931
 
 --- DIRECTORY STRUCTURE ---
 blogging-platform/
@@ -17,6 +17,7 @@ blogging-platform/
 │   │   ├── articleController.js
 │   │   ├── authController.js
 │   │   ├── commentController.js
+│   │   ├── coverController.js
 │   │   └── userController.js
 │   ├── middlewares/
 │   │   ├── auth.js
@@ -29,23 +30,11 @@ blogging-platform/
 │   │   ├── authRoutes.js
 │   │   ├── commentRoutes.js
 │   │   └── userRoutes.js
-│   ├── tests/
-│   │   ├── middleware/
-│   │   │   └── authMiddleware.test.js
-│   │   ├── utils/
-│   │   │   ├── setup.js
-│   │   │   ├── testLoginHelper.js
-│   │   │   └── testUtils.js
-│   │   ├── articles.test.js
-│   │   ├── auth.test.js
-│   │   └── comments.test.js
-│   ├── uploads/
-│   │   └── 1754135739045-ChatGPT_Image_Jul_8__2025__03_37_44_PM.png [binary]
 │   ├── utils/
 │   │   └── logger.js
 │   ├── app.js
 │   ├── code.txt
-│   ├── hash.js
+│   ├── eslint.config.js
 │   ├── package.json
 │   └── server.js
 ├── frontend/
@@ -55,7 +44,8 @@ blogging-platform/
 │   │   ├── components/
 │   │   │   ├── ArticleCard.jsx
 │   │   │   ├── CommentSection.jsx
-│   │   │   └── Navbar.jsx
+│   │   │   ├── Navbar.jsx
+│   │   │   └── ProtectedRoute.jsx
 │   │   ├── context/
 │   │   │   └── AuthContext.jsx
 │   │   ├── pages/
@@ -65,6 +55,7 @@ blogging-platform/
 │   │   │   ├── Home.jsx
 │   │   │   ├── Login.jsx
 │   │   │   ├── Register.jsx
+│   │   │   ├── UserDashboard.jsx
 │   │   │   └── UserProfile.jsx
 │   │   ├── services/
 │   │   │   └── api.js
@@ -79,10 +70,15 @@ blogging-platform/
 │   │   ├── reportWebVitals.js
 │   │   └── setupTests.js
 │   ├── code.txt
+│   ├── eslint.config.js
+│   ├── eslint.config.mjs
 │   ├── package.json
 │   ├── postcss.config.js
 │   ├── README.md
 │   └── tailwind.config.js
+├── eslint.config.js
+├── LICENSE
+├── package.json
 └── README.md
 
 
@@ -90,14 +86,14 @@ blogging-platform/
 ============================================================
 FILE: backend/config/db.js
 ============================================================
-const mysql = require('mysql2/promise'); // ⬅ this is important
-require('dotenv').config();
+const mysql = require("mysql2/promise"); // ⬅ this is important
+require("dotenv").config();
 
 const db = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
-  database: process.env.DB_NAME
+  database: process.env.DB_NAME,
 });
 
 module.exports = db;
@@ -106,10 +102,9 @@ module.exports = db;
 ============================================================
 FILE: backend/controllers/articleController.js
 ============================================================
-const db = require('../config/db');
-const jwt = require('jsonwebtoken');
-require('dotenv').config();
-
+const db = require("../config/db");
+const jwt = require("jsonwebtoken");
+require("dotenv").config();
 
 // Helper to extract userId from token
 const getUserIdFromToken = (token) => {
@@ -117,52 +112,76 @@ const getUserIdFromToken = (token) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     return decoded.id;
   } catch (error) {
-    throw new Error('Invalid token');
+    throw new Error("Invalid token");
   }
 }; // make sure this function is defined
 
 exports.create = async (req, res) => {
-  console.log('📦 req.body:', req.body);
-  console.log('🖼 req.file:', req.file);
-
   try {
     const { title, content, category, tags } = req.body;
     const cover = req.file?.filename || null;
 
     // Check token
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(403).json({ message: 'Token missing' }); // 🔁 changed 'error' to 'message'
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) return res.status(403).json({ message: "Token missing" });
 
     const userId = getUserIdFromToken(token);
-    console.log('🔑 Decoded User ID:', userId);
-    // Validate input
+
+    // Enhanced input validation
     if (!title || !content || !category) {
-      return res.status(400).json({ message: 'All fields are required' }); // 🔁 here too
+      return res
+        .status(400)
+        .json({ message: "Title, content, and category are required" });
+    }
+
+    // Sanitize inputs
+    const sanitizedTitle = title.trim().substring(0, 255);
+    const sanitizedContent = content.trim();
+    const sanitizedCategory = category.trim().substring(0, 100);
+
+    if (sanitizedTitle.length < 3) {
+      return res
+        .status(400)
+        .json({ message: "Title must be at least 3 characters long" });
+    }
+
+    if (sanitizedContent.length < 10) {
+      return res
+        .status(400)
+        .json({ message: "Content must be at least 10 characters long" });
     }
 
     // Format tags as comma-separated string
-    const formattedTags = Array.isArray(tags) ? tags.join(',') : tags;
+    const formattedTags = Array.isArray(tags) ? tags.join(",") : tags;
 
     // Insert article
     const [result] = await db.query(
-      'INSERT INTO articles (title, content, category, tags, user_id, cover) VALUES (?, ?, ?, ?, ?,?)',
-      [title, content, category, formattedTags, userId, cover]
+      "INSERT INTO articles (title, content, category, tags, user_id, cover) VALUES (?, ?, ?, ?, ?,?)",
+      [
+        sanitizedTitle,
+        sanitizedContent,
+        sanitizedCategory,
+        formattedTags,
+        userId,
+        cover,
+      ],
     );
 
     // Fetch inserted article
-    const [article] = await db.query('SELECT * FROM articles WHERE id = ?', [result.insertId]);
+    const [article] = await db.query("SELECT * FROM articles WHERE id = ?", [
+      result.insertId,
+    ]);
 
     res.status(201).json(article[0]);
   } catch (error) {
-    console.error('Create Error:', error);
-    if (error.message === 'Invalid token') {
-      res.status(403).json({ message: 'Unauthorized' }); // 🔁 consistent key
+    console.error("Create Error:", error);
+    if (error.message === "Invalid token") {
+      res.status(403).json({ message: "Unauthorized" }); // 🔁 consistent key
     } else {
-      res.status(500).json({ message: 'Internal Server Error' }); // 🔁
+      res.status(500).json({ message: "Internal Server Error" }); // 🔁
     }
   }
 };
-
 
 exports.getAll = async (req, res) => {
   try {
@@ -196,7 +215,7 @@ exports.getAll = async (req, res) => {
     }
 
     if (conditions.length > 0) {
-      query += ` WHERE ` + conditions.join(' AND ');
+      query += ` WHERE ` + conditions.join(" AND ");
     }
 
     query += ` ORDER BY articles.created_at DESC`;
@@ -204,56 +223,127 @@ exports.getAll = async (req, res) => {
     const [articles] = await db.query(query, params);
     res.status(200).json(articles);
   } catch (error) {
-    console.error('🔍 getAll Articles Error:', error.message);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("🔍 getAll Articles Error:", error.message);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
-
 
 exports.getById = async (req, res) => {
   try {
     const { id } = req.params;
-    const [article] = await db.query('SELECT * FROM articles WHERE id = ?', [id]);
+    const [article] = await db.query("SELECT * FROM articles WHERE id = ?", [
+      id,
+    ]);
 
     if (article.length === 0) {
-      return res.status(404).json({ error: 'Article not found' });
+      return res.status(404).json({ error: "Article not found" });
     }
 
     res.status(200).json(article[0]);
   } catch (error) {
-    console.error('GetById Error:', error);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("GetById Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
 exports.update = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, content, category, tags } = req.body;
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(403).json({ error: 'Token missing' });
+    const { title, content, category, tags, removeCover } = req.body;
+    const cover = req.file?.filename || null;
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) return res.status(403).json({ error: "Token missing" });
 
     const userId = getUserIdFromToken(token);
 
-    const formattedTags = Array.isArray(tags) ? tags.join(',') : tags;
-
-    const [result] = await db.query(
-      'UPDATE articles SET title = ?, content = ?, category = ?, tags = ? WHERE id = ? AND user_id = ?',
-      [title, content, category, formattedTags, id, userId]
-    );
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: 'Article not found or not authorized' });
+    // Enhanced input validation
+    if (!title || !content || !category) {
+      return res
+        .status(400)
+        .json({ message: "Title, content, and category are required" });
     }
 
-    const [updated] = await db.query('SELECT * FROM articles WHERE id = ?', [id]);
+    // Sanitize inputs
+    const sanitizedTitle = title.trim().substring(0, 255);
+    const sanitizedContent = content.trim();
+    const sanitizedCategory = category.trim().substring(0, 100);
+
+    if (sanitizedTitle.length < 3) {
+      return res
+        .status(400)
+        .json({ message: "Title must be at least 3 characters long" });
+    }
+
+    if (sanitizedContent.length < 10) {
+      return res
+        .status(400)
+        .json({ message: "Content must be at least 10 characters long" });
+    }
+
+    const formattedTags = Array.isArray(tags) ? tags.join(",") : tags;
+
+    // Build update query based on cover handling
+    let updateQuery, updateParams;
+
+    if (removeCover === "true") {
+      // If user wants to remove cover, set cover to NULL
+      updateQuery =
+        "UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, cover = NULL WHERE id = ? AND user_id = ?";
+      updateParams = [
+        sanitizedTitle,
+        sanitizedContent,
+        sanitizedCategory,
+        formattedTags,
+        id,
+        userId,
+      ];
+    } else if (cover) {
+      // If new cover is uploaded, update with cover
+      updateQuery =
+        "UPDATE articles SET title = ?, content = ?, category = ?, tags = ?, cover = ? WHERE id = ? AND user_id = ?";
+      updateParams = [
+        sanitizedTitle,
+        sanitizedContent,
+        sanitizedCategory,
+        formattedTags,
+        cover,
+        id,
+        userId,
+      ];
+    } else {
+      // If no new cover, update without changing cover
+      updateQuery =
+        "UPDATE articles SET title = ?, content = ?, category = ?, tags = ? WHERE id = ? AND user_id = ?";
+      updateParams = [
+        sanitizedTitle,
+        sanitizedContent,
+        sanitizedCategory,
+        formattedTags,
+        id,
+        userId,
+      ];
+    }
+
+    const [result] = await db.query(updateQuery, updateParams);
+
+    if (result.affectedRows === 0) {
+      return res
+        .status(404)
+        .json({ error: "Article not found or not authorized" });
+    }
+
+    const [updated] = await db.query("SELECT * FROM articles WHERE id = ?", [
+      id,
+    ]);
     res.status(200).json(updated[0]);
   } catch (error) {
-    console.error('Update Error:', error.message);
-    if (error.message === 'Invalid token') {
-      res.status(403).json({ error: 'Unauthorized' });
+    console.error("Update Error:", error.message);
+    console.error("Request body:", req.body);
+    console.error("Request file:", req.file);
+    if (error.message === "Invalid token") {
+      res.status(403).json({ error: "Unauthorized" });
     } else {
-      res.status(500).json({ error: 'Internal Server Error' });
+      res.status(500).json({ error: "Internal Server Error" });
     }
   }
 };
@@ -261,117 +351,122 @@ exports.update = async (req, res) => {
 exports.delete = async (req, res) => {
   try {
     const articleId = req.params.id;
-    const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(403).json({ message: 'Token missing' });
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) return res.status(403).json({ message: "Token missing" });
 
     let userId;
     try {
       userId = getUserIdFromToken(token);
     } catch (err) {
-      return res.status(403).json({ message: 'Invalid token' });
+      return res.status(403).json({ message: "Invalid token" });
     }
 
-    const [[user]] = await db.query('SELECT * FROM users WHERE id = ?', [userId]);
-    if (!user) return res.status(403).json({ message: 'User not found' });
+    const [[user]] = await db.query("SELECT * FROM users WHERE id = ?", [
+      userId,
+    ]);
+    if (!user) return res.status(403).json({ message: "User not found" });
 
-    const [[article]] = await db.query('SELECT * FROM articles WHERE id = ?', [articleId]);
-    if (!article) return res.status(404).json({ message: 'Article not found' });
+    const [[article]] = await db.query("SELECT * FROM articles WHERE id = ?", [
+      articleId,
+    ]);
+    if (!article) return res.status(404).json({ message: "Article not found" });
 
     // This is the key line
-    if (user.id !== article.user_id && user.role !== 'admin') {
-      return res.status(403).json({ message: 'Forbidden: not author or admin' }); // ✅ Fix: 403
+    if (user.id !== article.user_id && user.role !== "admin") {
+      return res
+        .status(403)
+        .json({ message: "Forbidden: not author or admin" }); // ✅ Fix: 403
     }
 
-    await db.query('DELETE FROM articles WHERE id = ?', [articleId]);
-    res.status(200).json({ message: 'Article deleted' });
+    await db.query("DELETE FROM articles WHERE id = ?", [articleId]);
+    res.status(200).json({ message: "Article deleted" });
   } catch (err) {
-    console.error('Delete Error:', err.message);
-    res.status(500).json({ message: 'Internal Server Error' });
+    console.error("Delete Error:", err.message);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
 
 ============================================================
 FILE: backend/controllers/authController.js
 ============================================================
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const db = require('../config/db');
-require('dotenv').config();
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const db = require("../config/db");
+require("dotenv").config();
 
 exports.registerUser = async (req, res) => {
-    const { username, email, password } = req.body;
+  const { username, email, password } = req.body;
 
-    try {
-        const hashedPassword = await bcrypt.hash(password, 10);
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-        const [existing] = await db.query(
-            `SELECT * FROM users WHERE email = ? OR username = ?`,
-            [email, username]
-        );
+    const [existing] = await db.query(
+      `SELECT * FROM users WHERE email = ? OR username = ?`,
+      [email, username],
+    );
 
-        if (existing.length > 0)
-            return res.status(400).json({ message: "User already exists" });
+    if (existing.length > 0)
+      return res.status(400).json({ message: "User already exists" });
 
-        await db.query(
-            `INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)`,
-            [username, email, hashedPassword]
-        );
+    await db.query(
+      `INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)`,
+      [username, email, hashedPassword],
+    );
 
-        res.status(201).json({ message: "User registered successfully" });
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
+    res.status(201).json({ message: "User registered successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };
 
 exports.loginUser = async (req, res) => {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
 
-    try {
-        const [users] = await db.query(
-            `SELECT * FROM users WHERE email = ?`,
-            [email]
-        );
+  try {
+    const [users] = await db.query(`SELECT * FROM users WHERE email = ?`, [
+      email,
+    ]);
 
-        if (users.length === 0)
-            return res.status(404).json({ message: 'User Not Found' });
+    if (users.length === 0)
+      return res.status(404).json({ message: "User Not Found" });
 
-        const user = users[0];
-        const isMatch = await bcrypt.compare(password, user.password_hash);
+    const user = users[0];
+    const isMatch = await bcrypt.compare(password, user.password_hash);
 
-        if (!isMatch)
-            return res.status(401).json({ message: 'Invalid Password' });
+    if (!isMatch) return res.status(401).json({ message: "Invalid Password" });
 
-        const token = jwt.sign(
-            { id: user.id, role: user.role },
-            process.env.JWT_SECRET,
-            { expiresIn: '1d' }
-        );
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" },
+    );
 
-        res.json({
-            token,
-            user: {
-                id: user.id,
-                username: user.username,
-                email: user.email,
-                role: user.role
-            }
-        });
-    } catch (err) {
-        res.status(500).json({ message: 'Server Error', error: err.message });
-    }
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Server Error", error: err.message });
+  }
 };
 
 
 ============================================================
 FILE: backend/controllers/commentController.js
 ============================================================
-const db = require('../config/db');
-const jwt = require('jsonwebtoken');
-require('dotenv').config();
+const db = require("../config/db");
+const jwt = require("jsonwebtoken");
+require("dotenv").config();
 
 const getUserFromToken = (authHeader) => {
-  if (!authHeader) throw new Error('No token provided');
-  const token = authHeader.split(' ')[1];
+  if (!authHeader) throw new Error("No token provided");
+  const token = authHeader.split(" ")[1];
   return jwt.verify(token, process.env.JWT_SECRET);
 };
 
@@ -382,18 +477,20 @@ exports.addComment = async (req, res) => {
     const articleId = req.params.id;
     const { id: userId } = getUserFromToken(req.headers.authorization);
 
-    if (!content) return res.status(400).json({ error: 'Content is required' });
+    if (!content) return res.status(400).json({ error: "Content is required" });
 
     const [result] = await db.query(
-      'INSERT INTO comments (user_id, article_id, content) VALUES (?, ?, ?)',
-      [userId, articleId, content]
+      "INSERT INTO comments (user_id, article_id, content) VALUES (?, ?, ?)",
+      [userId, articleId, content],
     );
 
-    const [comment] = await db.query('SELECT * FROM comments WHERE id = ?', [result.insertId]);
+    const [comment] = await db.query("SELECT * FROM comments WHERE id = ?", [
+      result.insertId,
+    ]);
     res.status(201).json(comment[0]);
   } catch (err) {
-    console.error('Add Comment Error:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Add Comment Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
@@ -410,13 +507,13 @@ exports.getCommentsByArticleId = async (req, res) => {
       WHERE comments.article_id = ?
       ORDER BY comments.created_at ASC
       `,
-      [articleId]
+      [articleId],
     );
 
     res.status(200).json(comments);
   } catch (err) {
-    console.error('Get Comments Error:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Get Comments Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
@@ -426,22 +523,24 @@ exports.deleteComment = async (req, res) => {
     const commentId = req.params.id;
     const { id: userId, role } = getUserFromToken(req.headers.authorization);
 
-    let query = 'DELETE FROM comments WHERE id = ?';
-    let values = [commentId];
+    let query = "DELETE FROM comments WHERE id = ?";
+    const values = [commentId];
 
-    if (role !== 'admin') {
-      query += ' AND user_id = ?';
+    if (role !== "admin") {
+      query += " AND user_id = ?";
       values.push(userId);
     }
 
     const [result] = await db.query(query, values);
     if (result.affectedRows === 0)
-      return res.status(403).json({ error: 'Not authorized or comment not found' });
+      return res
+        .status(403)
+        .json({ error: "Not authorized or comment not found" });
 
-    res.json({ message: 'Comment deleted successfully' });
+    res.json({ message: "Comment deleted successfully" });
   } catch (err) {
-    console.error('Delete Comment Error:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Delete Comment Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
@@ -453,40 +552,92 @@ exports.editComment = async (req, res) => {
     const { id: userId } = getUserFromToken(req.headers.authorization);
 
     const [result] = await db.query(
-      'UPDATE comments SET content = ? WHERE id = ? AND user_id = ?',
-      [content, commentId, userId]
+      "UPDATE comments SET content = ? WHERE id = ? AND user_id = ?",
+      [content, commentId, userId],
     );
 
     if (result.affectedRows === 0)
-      return res.status(403).json({ error: 'Not authorized or comment not found' });
+      return res
+        .status(403)
+        .json({ error: "Not authorized or comment not found" });
 
-    const [updated] = await db.query('SELECT * FROM comments WHERE id = ?', [commentId]);
+    const [updated] = await db.query("SELECT * FROM comments WHERE id = ?", [
+      commentId,
+    ]);
     res.json(updated[0]);
   } catch (err) {
-    console.error('Edit Comment Error:', err);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("Edit Comment Error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
   }
+};
+
+
+============================================================
+FILE: backend/controllers/coverController.js
+============================================================
+const fs = require("fs").promises;
+const path = require("path");
+
+// Delete cover image file
+exports.deleteCover = async (filename) => {
+  if (!filename) return;
+
+  try {
+    const filePath = path.join(__dirname, "..", "uploads", filename);
+    await fs.unlink(filePath);
+  } catch (error) {
+    // File might not exist, which is fine
+    console.error("Error deleting cover file:", error.message);
+  }
+};
+
+// Get cover image URL
+exports.getCoverUrl = (filename) => {
+  if (!filename) return null;
+  return `/uploads/${filename}`;
+};
+
+// Validate file type
+exports.validateFileType = (file) => {
+  const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
+  return allowedTypes.includes(file.mimetype);
+};
+
+// Validate file size (5MB limit)
+exports.validateFileSize = (file) => {
+  const maxSize = 5 * 1024 * 1024; // 5MB
+  return file.size <= maxSize;
 };
 
 
 ============================================================
 FILE: backend/controllers/userController.js
 ============================================================
-const db = require('../config/db');
+const db = require("../config/db");
 
 exports.getUserProfile = async (req, res) => {
   try {
     const userId = req.params.id;
 
     // Fetch user
-    const [users] = await db.query('SELECT id, username, email FROM users WHERE id = ?', [userId]);
-    if (users.length === 0) return res.status(404).json({ error: 'User not found' });
+    const [users] = await db.query(
+      "SELECT id, username, email FROM users WHERE id = ?",
+      [userId],
+    );
+    if (users.length === 0)
+      return res.status(404).json({ error: "User not found" });
 
     // Fetch articles
-    const [articles] = await db.query('SELECT id, title, created_at FROM articles WHERE user_id = ?', [userId]);
+    const [articles] = await db.query(
+      "SELECT id, title, created_at FROM articles WHERE user_id = ?",
+      [userId],
+    );
 
     //Fetch Comments
-    const [comments] = await db.query('SELECT id, content, created_at FROM comments WHERE user_id = ?', [userId]);
+    const [comments] = await db.query(
+      "SELECT id, content, created_at FROM comments WHERE user_id = ?",
+      [userId],
+    );
 
     res.json({
       user: users[0],
@@ -494,8 +645,36 @@ exports.getUserProfile = async (req, res) => {
       comments,
     });
   } catch (err) {
-    console.error('User Profile Error:', err.message);
-    res.status(500).json({ error: 'Internal Server Error' });
+    console.error("User Profile Error:", err.message);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+exports.getUserArticles = async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    // Fetch user's articles with full details
+    const [articles] = await db.query(
+      `SELECT 
+        id, 
+        title, 
+        content, 
+        category, 
+        tags, 
+        cover, 
+        created_at, 
+        updated_at 
+      FROM articles 
+      WHERE user_id = ? 
+      ORDER BY created_at DESC`,
+      [userId],
+    );
+
+    res.json(articles);
+  } catch (err) {
+    console.error("Get User Articles Error:", err.message);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
@@ -504,20 +683,20 @@ exports.getUserProfile = async (req, res) => {
 FILE: backend/middlewares/auth.js
 ============================================================
 // ✅ auth.js
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
 
 exports.authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader?.split(' ')[1];
+  const authHeader = req.headers["authorization"];
+  const token = authHeader?.split(" ")[1];
 
-  if (!token) return res.status(401).json({ message: 'Access token missing' });
+  if (!token) return res.status(401).json({ message: "Access token missing" });
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
     next();
   } catch {
-    return res.status(403).json({ message: 'Invalid token' });
+    return res.status(403).json({ message: "Invalid token" });
   }
 };
 
@@ -526,12 +705,12 @@ exports.authenticateToken = (req, res, next) => {
 FILE: backend/middlewares/errorHandler.js
 ============================================================
 const errorHandler = (err, req, res, next) => {
-  console.error('Error:', err.message);
+  console.error("Error:", err.message);
 
   const statusCode = err.statusCode || 500;
 
   res.status(statusCode).json({
-    error: err.message || 'Internal Server Error',
+    error: err.message || "Internal Server Error",
   });
 };
 
@@ -542,17 +721,16 @@ module.exports = errorHandler;
 FILE: backend/middlewares/uploadMiddleware.js
 ============================================================
 // backend/middlewares/uploadMiddleware.js
-const multer = require('multer');
-const path = require('path');
+const multer = require("multer");
+const path = require("path");
 
 // Sanitize filenames (remove special characters)
-const sanitizeFilename = (filename) =>
-  filename.replace(/[^a-zA-Z0-9.-]/g, '_');
+const sanitizeFilename = (filename) => filename.replace(/[^a-zA-Z0-9.-]/g, "_");
 
 // Multer storage config
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '..', 'uploads'));
+    cb(null, path.join(__dirname, "..", "uploads"));
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -562,12 +740,32 @@ const storage = multer.diskStorage({
   },
 });
 
-// Optional: File type filter (images only)
+// Enhanced file type filter
 const fileFilter = (req, file, cb) => {
   const allowedTypes = /jpeg|jpg|png|gif/;
-  const isValid = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  if (isValid) cb(null, true);
-  else cb(new Error('Only image files are allowed'), false);
+  const isValid = allowedTypes.test(
+    path.extname(file.originalname).toLowerCase(),
+  );
+
+  if (!isValid) {
+    return cb(
+      new Error("Only image files (JPEG, PNG, GIF) are allowed"),
+      false,
+    );
+  }
+
+  // Check MIME type as well
+  const allowedMimeTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+  ];
+  if (!allowedMimeTypes.includes(file.mimetype)) {
+    return cb(new Error("Invalid file type detected"), false);
+  }
+
+  cb(null, true);
 };
 
 const upload = multer({
@@ -584,103 +782,109 @@ module.exports = upload;
 ============================================================
 FILE: backend/models/Article.js
 ============================================================
-const db = require('../config/db');
-const {v4:uuidv4} = require('uuid');
+const db = require("../config/db");
+const { v4: uuidv4 } = require("uuid");
 
 class Article {
-    //create new article
-    static async create({title,content,tags='',userId}){
-        const [result] = await db.query(
-            `INSERT INTO articles
+  //create new article
+  static async create({ title, content, tags = "", userId }) {
+    const [result] = await db.query(
+      `INSERT INTO articles
             (title,content,tags,userId)
-            VALUES(?,?,?,?) `, 
-            [title,content,tags,userId]);
+            VALUES(?,?,?,?) `,
+      [title, content, tags, userId],
+    );
 
-        return this.getById(result.insertId);
-    }
+    return this.getById(result.insertId);
+  }
 
-    //get all articles
-    static async getAll({tag,page=1,limit=10} = {}){
-        let query =`SELECT articles.*,
+  //get all articles
+  static async getAll({ tag, page = 1, limit = 10 } = {}) {
+    let query = `SELECT articles.*,
         users.name AS author
         FROM articles
         LEFT JOIN users ON articles.user_id = users.id
         `;
-        const params = [];
-        if(tag){
-            query += `WHERE tags LIKE ?`;
-            params.push(`%${tag}%`);
-        }
-        //pagination
-        query += `
+    const params = [];
+    if (tag) {
+      query += `WHERE tags LIKE ?`;
+      params.push(`%${tag}%`);
+    }
+    //pagination
+    query += `
         LIMIT ? OFFSET ?
         `;
-        params.push(limit,(page-1)*limit);
-        const [article] = await db.query(query,params);
-        return article;
-    }
-    static async getById(id) {
-        const [[article]] = await db.query(
-        `SELECT 
+    params.push(limit, (page - 1) * limit);
+    const [article] = await db.query(query, params);
+    return article;
+  }
+  static async getById(id) {
+    const [[article]] = await db.query(
+      `SELECT 
         articles.*, 
         users.username AS author 
         FROM articles 
         LEFT JOIN users ON articles.user_id = users.id 
         WHERE articles.id = ?`,
-      [id]
+      [id],
     );
     return article || null;
-    }
-    static async update(id,{title,content,tags,userId}){
-        await db.query(`
+  }
+  static async update(id, { title, content, tags, userId }) {
+    await db.query(
+      `
             UPDATE articles
             SET title = ?, content = ?, tags = ?, updated_at = CURRENT_TIMESTAMP 
             WHERE id = ? AND user_id = ?`,
-            [title, content, tags, id, userId]
-        );
-    }
-    static async delete(id,userId){
-        const [result] = await db.query(`DELETE FROM articles 
-       WHERE id = ? AND user_id = ?`,[id,userId]);
-       return result.affectedRows > 0;
-    }
-    static async getByUser(userId){
-        const [articles] = await db.query(
-            `SELECT * FROM articles WHERE user_id = ?`,
-            [userId]
-        );
-        return articles || null;
-    }
+      [title, content, tags, id, userId],
+    );
+  }
+  static async delete(id, userId) {
+    const [result] = await db.query(
+      `DELETE FROM articles 
+       WHERE id = ? AND user_id = ?`,
+      [id, userId],
+    );
+    return result.affectedRows > 0;
+  }
+  static async getByUser(userId) {
+    const [articles] = await db.query(
+      `SELECT * FROM articles WHERE user_id = ?`,
+      [userId],
+    );
+    return articles || null;
+  }
 }
 
 module.exports = Article;
 
+
 ============================================================
 FILE: backend/routes/articleRoutes.js
 ============================================================
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const upload = require('../middlewares/uploadMiddleware');
-const { authenticateToken } = require('../middlewares/auth');
+const upload = require("../middlewares/uploadMiddleware");
+const { authenticateToken } = require("../middlewares/auth");
 
 const {
   create,
   getAll,
   getById,
   update,
-  delete: deleteArticle
-} = require('../controllers/articleController');
+  delete: deleteArticle,
+} = require("../controllers/articleController");
 
-const { addComment } = require('../controllers/commentController');
+const { addComment } = require("../controllers/commentController");
 
 // ✅ Only ONE route for article creation with upload middleware
-router.post('/articles', authenticateToken, upload.single('cover'), create);
+router.post("/articles", authenticateToken, upload.single("cover"), create);
 
-router.get('/articles', getAll);
-router.get('/articles/:id', getById);
-router.put('/articles/:id', authenticateToken, update);
-router.delete('/articles/:id', authenticateToken, deleteArticle);
-router.post('/articles/:id/comments', authenticateToken, addComment);
+router.get("/articles", getAll);
+router.get("/articles/:id", getById);
+router.put("/articles/:id", authenticateToken, upload.single("cover"), update);
+router.delete("/articles/:id", authenticateToken, deleteArticle);
+router.post("/articles/:id/comments", authenticateToken, addComment);
 
 module.exports = router;
 
@@ -688,22 +892,21 @@ module.exports = router;
 ============================================================
 FILE: backend/routes/authRoutes.js
 ============================================================
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const {registerUser,loginUser
-} = require('../controllers/authController');
-const rateLimit = require('express-rate-limit');
+const { registerUser, loginUser } = require("../controllers/authController");
+const rateLimit = require("express-rate-limit");
 
 const loginLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
   max: 5,
-  message: { error: 'Too many login attempts. Please try again later.' },
+  message: { error: "Too many login attempts. Please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-router.post('/register',registerUser);
-router.post('/login',loginUser);
+router.post("/register", registerUser);
+router.post("/login", loginUser);
 
 module.exports = router;
 
@@ -711,20 +914,19 @@ module.exports = router;
 ============================================================
 FILE: backend/routes/commentRoutes.js
 ============================================================
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 const {
   addComment,
   getCommentsByArticleId,
   deleteComment,
-  editComment
-} = require('../controllers/commentController');
+  editComment,
+} = require("../controllers/commentController");
 
 // Comment routes
-router.post('/articles/:id/comments', addComment);
-router.get('/articles/:id/comments', getCommentsByArticleId);
-router.delete('/comments/:id', deleteComment);
-router.put('/comments/:id', editComment);
+router.get("/articles/:id/comments", getCommentsByArticleId);
+router.delete("/comments/:id", deleteComment);
+router.put("/comments/:id", editComment);
 
 module.exports = router;
 
@@ -732,408 +934,54 @@ module.exports = router;
 ============================================================
 FILE: backend/routes/userRoutes.js
 ============================================================
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { getUserProfile   } = require('../controllers/userController.js');
-const {authenticateToken} = require('../middlewares/auth.js');
+const {
+  getUserProfile,
+  getUserArticles,
+} = require("../controllers/userController.js");
+const { authenticateToken } = require("../middlewares/auth.js");
 
-router.get('/users/:id/profile', authenticateToken, getUserProfile);
-
+router.get("/users/:id/profile", authenticateToken, getUserProfile);
+router.get("/users/:id/articles", authenticateToken, getUserArticles);
 
 module.exports = router;
-
-============================================================
-FILE: backend/tests/middleware/authMiddleware.test.js
-============================================================
-const jwt = require('jsonwebtoken');
-const { authenticateToken } = require('../../middlewares/auth');
-require('dotenv').config();
-
-describe('authenticateToken Middleware', () => {
-  const mockUser = { id: 1, email: 'test@example.com', role: 'user' };
-  const secret = process.env.JWT_SECRET || 'your_secret_key';
-
-  const getMockReqResNext = (token) => {
-    const req = {
-      headers: { authorization: `Bearer ${token}` },
-    };
-    const res = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
-    };
-    const next = jest.fn();
-    return { req, res, next };
-  };
-
-  it('should call next() if token is valid', () => {
-    const token = jwt.sign(mockUser, secret);
-    const { req, res, next } = getMockReqResNext(token);
-    authenticateToken(req, res, next);
-    expect(req.user).toEqual(expect.objectContaining({ id: mockUser.id }));
-    expect(next).toHaveBeenCalled();
-  });
-
-  it('should return 401 if token is missing', () => {
-    const req = { headers: {} };
-    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
-    const next = jest.fn();
-
-    authenticateToken(req, res, next);
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ message: 'Access token missing' });
-    expect(next).not.toHaveBeenCalled();
-  });
-
-  it('should return 403 if token is invalid', () => {
-    const { req, res, next } = getMockReqResNext('invalid.token.here');
-    authenticateToken(req, res, next);
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({ message: 'Invalid token' });
-    expect(next).not.toHaveBeenCalled();
-  });
-});
-
-
-============================================================
-FILE: backend/tests/utils/setup.js
-============================================================
-const db = require('../../config/db');
-
-module.exports = async () => {
-  // Clean or reset your test database
-  await db.query('DELETE FROM comments');
-  await db.query('DELETE FROM articles');
-  await db.query('DELETE FROM users');
-};
-
-
-============================================================
-FILE: backend/tests/utils/testLoginHelper.js
-============================================================
-const jwt = require('jsonwebtoken');
-
-const generateTestToken = (user = { id: 1, email: 'user@test.com', role: 'user' }) => {
-  const secret = process.env.JWT_SECRET || 'your_secret_key';
-  const token = jwt.sign(user, secret);
-  return { token, user };
-};
-
-module.exports = { generateTestToken };
-
-
-============================================================
-FILE: backend/tests/utils/testUtils.js
-============================================================
-const jwt = require('jsonwebtoken');
-
-const generateToken = (user) => {
-  return jwt.sign(user, process.env.JWT_SECRET || 'your_jwt_secret', {
-    expiresIn: '1d',
-  });
-};
-
-// Simulate a logged-in user (regular user by default)
-const mockUser = {
-  id: 1,
-  username: 'testuser',
-  email: 'test@example.com',
-  role: 'user',
-};
-
-const mockAdmin = {
-  id: 2,
-  username: 'admin',
-  email: 'admin@example.com',
-  role: 'admin',
-};
-
-const getAuthHeader = (user = mockUser) => {
-  const token = generateToken(user);
-  return { Authorization: `Bearer ${token}` };
-};
-
-module.exports = {
-  generateToken,
-  mockUser,
-  mockAdmin,
-  getAuthHeader,
-};
-
-
-============================================================
-FILE: backend/tests/articles.test.js
-============================================================
-const request = require('supertest');
-const app = require('../app');
-const db = require('../config/db');
-const setup  = require('./utils/setup'); // ✅ clear DB, add seed data
-const { generateTestToken } = require('./utils/testLoginHelper');
-
-let token;
-let user;
-
-beforeEach(async () => {
-  await setup();
-
-  const author = {
-    username: 'author1',
-    email: 'author@example.com',
-    password: 'pass123',
-  };
-
-  await request(app).post('/api/auth/register').send(author);
-
-  const res = await request(app).post('/api/auth/login').send({
-    email: author.email,
-    password: author.password,
-  });
-
-  token = res.body.token;
-  // ✅ Outsider user
-  const outsider = {
-    username: 'outsider',
-    email: 'outsider@example.com',
-    password: 'pass456',
-  };
-
-  await request(app).post('/api/auth/register').send(outsider);
-
-  const outsiderRes = await request(app).post('/api/auth/login').send({
-    email: outsider.email,
-    password: outsider.password,
-  });
-
-  outsiderToken = outsiderRes.body.token;
-});
-
-afterAll(async () => {
-  await db.end();
-});
-
-describe('Articles API', () => {
-  test('Should create a new article', async () => {
-    const res = await request(app)
-      .post('/api/articles')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        title: 'Test Article',
-        content: 'Content goes here',
-        category: 'tech',
-        tags: 'react,node',
-      });
-
-    expect(res.statusCode).toBe(201);
-    expect(res.body.title).toBe('Test Article');
-    expect(res.body.content).toBe('Content goes here');
-    expect(res.body.category).toBe('tech');
-  });
-
-  test('Should fail to create article with missing fields', async () => {
-    const res = await request(app)
-      .post('/api/articles')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ title: '', content: '' });
-
-    expect(res.statusCode).toBe(400);
-    expect(res.body.message).toMatch(/required/i);
-  });
-
-  test('Should get all articles', async () => {
-    const res = await request(app).get('/api/articles');
-    expect(res.statusCode).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-  });
-
-  test('Should not delete an article if user is not owner or admin', async () => {
-    // First create an article
-    const postRes = await request(app)
-      .post('/api/articles')
-      .set('Authorization', `Bearer ${token}`)
-      .send({
-        title: 'Another Article',
-        content: 'Secret content',
-        category: 'science',
-        tags: 'test',
-      });
-
-    const articleId = postRes.body.id;
-
-    // Generate token for a different user (not the article owner)
-    const outsiderToken = generateTestToken({
-      id: 999,
-      email: 'outsider@example.com',
-      role: 'user',
-    }).token;
-
-    // Try to delete it with another user
-    const deleteRes = await request(app)
-      .delete(`/api/articles/${articleId}`)
-      .set('Authorization', `Bearer ${outsiderToken}`);
-
-    expect(deleteRes.statusCode).toBe(403);
-    expect(deleteRes.body.message).toMatch("User not found");
-  });
-});
-
-
-============================================================
-FILE: backend/tests/auth.test.js
-============================================================
-const request = require('supertest');
-const app = require('../app');
-const db = require('../config/db');
-const setup = require('./utils/setup');
-
-beforeEach(async () => {
-  await setup();
-});
-
-afterAll(async () => {
-  await db.end();
-});
-
-describe('Auth API', () => {
-  const user = {
-    username: 'testuser',
-    email: 'test@example.com',
-    password: 'test123'
-  };
-
-  test('Should register a new user', async () => {
-    const res = await request(app).post('/api/auth/register').send(user);
-
-    expect(res.statusCode).toBe(201);
-    expect(res.body.message).toBe('User registered successfully');
-  });
-
-  test('Should login with correct credentials', async () => {
-    await request(app).post('/api/auth/register').send(user);
-
-    const res = await request(app).post('/api/auth/login').send({
-      email: user.email,
-      password: user.password
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toHaveProperty('token');
-    expect(res.body.user.email).toBe(user.email);
-  });
-
-  test('Should fail login with wrong password', async () => {
-    await request(app).post('/api/auth/register').send(user);
-
-    const res = await request(app).post('/api/auth/login').send({
-      email: user.email,
-      password: 'wrongpass'
-    });
-
-    expect(res.statusCode).toBe(401);
-    expect(res.body.message).toBe('Invalid credentials');
-  });
-});
-
-
-============================================================
-FILE: backend/tests/comments.test.js
-============================================================
-const request = require('supertest');
-const app = require('../app');
-const db = require('../config/db');
-const setup = require('./utils/setup');
-
-let token, articleId;
-
-beforeEach(async () => {
-  await setup();
-
-  const user = {
-    username: 'commenter',
-    email: 'comm@example.com',
-    password: 'pass123'
-  };
-
-  await request(app).post('/api/auth/register').send(user);
-
-  const res = await request(app).post('/api/auth/login').send({
-    email: user.email,
-    password: user.password
-  });
-
-  token = res.body.token;
-
-  const article = await request(app)
-    .post('/api/articles')
-    .set('Authorization', `Bearer ${token}`)
-    .send({
-      title: 'Article with Comments',
-      content: 'Great article',
-      category: 'general',
-      tags: 'blog,test'
-    });
-
-  articleId = article.body.id;
-});
-
-afterAll(async () => {
-  await db.end();
-});
-
-describe('Comments API', () => {
-  test('Should add a comment to an article', async () => {
-    const res = await request(app)
-      .post(`/api/articles/${articleId}/comments`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ content: 'This is a comment' });
-
-    expect(res.statusCode).toBe(201);
-    expect(res.body.message).toBe('Comment added');
-  });
-
-  test('Should fetch comments for an article', async () => {
-    await request(app)
-      .post(`/api/articles/${articleId}/comments`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ content: 'Nice one!' });
-
-    const res = await request(app).get(`/api/articles/${articleId}/comments`);
-    expect(res.statusCode).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-  });
-});
 
 
 ============================================================
 FILE: backend/app.js
 ============================================================
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
+const express = require("express");
+const cors = require("cors");
+const path = require("path");
 const app = express();
-require('dotenv').config();
+require("dotenv").config();
 
 // 🛡 Allow requests from frontend (adjust origin for production)
-app.use(cors({
-  origin: 'http://localhost:3000',
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+  }),
+);
 
 // 📦 Body parser for JSON
 app.use(express.json());
 
 // 🖼 Serve uploaded images statically
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // 🚏 Import route files
-const authRoutes = require('./routes/authRoutes');
-const articleRoutes = require('./routes/articleRoutes');
-const commentRoutes = require('./routes/commentRoutes');
-const userRoutes = require('./routes/userRoutes');
+const authRoutes = require("./routes/authRoutes");
+const articleRoutes = require("./routes/articleRoutes");
+const commentRoutes = require("./routes/commentRoutes");
+const userRoutes = require("./routes/userRoutes");
 
 // 🔗 Mount routes
-app.use('/api/auth', authRoutes);
-app.use('/api', articleRoutes);
-app.use('/api', commentRoutes);
-app.use('/api', userRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api", articleRoutes);
+app.use("/api", commentRoutes);
+app.use("/api", userRoutes);
 
 module.exports = app;
 
@@ -2200,10 +2048,34 @@ app.listen(PORT, () => {
 });
 
 ============================================================
-FILE: backend/hash.js
+FILE: backend/eslint.config.js
 ============================================================
-const bcrypt = require('bcryptjs');
-bcrypt.hash('admin123', 10).then(console.log);
+const js = require("@eslint/js");
+const globals = require("globals");
+
+module.exports = [
+  js.configs.recommended,
+  {
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.jest,
+      },
+      ecmaVersion: 2022,
+      sourceType: "module",
+    },
+    rules: {
+      "no-unused-vars": "warn",
+      "no-console": "off",
+      "prefer-const": "error",
+      "no-var": "error",
+    },
+  },
+  {
+    ignores: ["node_modules/**", "coverage/**", "uploads/**"],
+  },
+];
+
 
 ============================================================
 FILE: backend/package.json
@@ -2215,7 +2087,11 @@ FILE: backend/package.json
   "scripts": {
     "test": "cross-env NODE_ENV=test jest --runInBand --detectOpenHandles",
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md}\"",
+    "lint": "eslint \"**/*.js\" --fix",
+    "lint:check": "eslint \"**/*.js\""
   },
   "keywords": [],
   "author": "",
@@ -2235,9 +2111,14 @@ FILE: backend/package.json
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.32.0",
     "cross-env": "^10.0.0",
+    "eslint": "^9.32.0",
+    "eslint-plugin-node": "^11.1.0",
+    "globals": "^16.3.0",
     "jest": "^30.0.5",
     "nodemon": "^3.1.10",
+    "prettier": "^3.6.2",
     "supertest": "^7.1.4"
   }
 }
@@ -2246,7 +2127,7 @@ FILE: backend/package.json
 ============================================================
 FILE: backend/server.js
 ============================================================
-const app = require('./app');
+const app = require("./app");
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
@@ -2257,11 +2138,11 @@ app.listen(PORT, () => {
 ============================================================
 FILE: frontend/src/api/user.js
 ============================================================
-import axios from '../utils/axiosInstance';
+import axios from "../utils/axiosInstance";
 
 export const fetchUserProfile = (id, token) => {
   return axios.get(`/users/${id}/profile`, {
-    headers: { Authorization: `Bearer ${token}` }
+    headers: { Authorization: `Bearer ${token}` },
   });
 };
 
@@ -2270,13 +2151,11 @@ export const fetchUserProfile = (id, token) => {
 FILE: frontend/src/components/ArticleCard.jsx
 ============================================================
 // components/ArticleCard.jsx
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React from "react";
+import { Link } from "react-router-dom";
 
 const ArticleCard = ({ article }) => {
-  const coverUrl = article.cover
-    ? `http://localhost:5000/uploads/${article.cover}`
-    : null;
+  const coverUrl = article.cover ? `/uploads/${article.cover}` : null;
 
   return (
     <div className="bg-white p-6 rounded shadow-md">
@@ -2290,13 +2169,11 @@ const ArticleCard = ({ article }) => {
 
       <h3 className="text-xl font-semibold">{article.title}</h3>
       <p className="text-sm text-gray-500">
-        By {article.author || 'Unknown'} •{' '}
+        By {article.author || "Unknown"} •{" "}
         {new Date(article.created_at).toLocaleDateString()}
       </p>
 
-      <p className="mt-2 text-gray-700">
-        {article.content.slice(0, 150)}...
-      </p>
+      <p className="mt-2 text-gray-700">{article.content.slice(0, 150)}...</p>
 
       <Link
         to={`/articles/${article.id}`}
@@ -2314,18 +2191,18 @@ export default ArticleCard;
 ============================================================
 FILE: frontend/src/components/CommentSection.jsx
 ============================================================
-import React, { useEffect, useState } from 'react';
-import axios from '../utils/axiosInstance';
-import { useAuth } from '../context/AuthContext';
-import { FaSpinner } from 'react-icons/fa';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useEffect, useState } from "react";
+import axios from "../utils/axiosInstance";
+import { useAuth } from "../context/AuthContext";
+import { FaSpinner } from "react-icons/fa";
+import { motion, AnimatePresence } from "framer-motion";
 
 const CommentSection = ({ articleId }) => {
   const { user, token } = useAuth();
   const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState('');
+  const [newComment, setNewComment] = useState("");
   const [editingId, setEditingId] = useState(null);
-  const [editingContent, setEditingContent] = useState('');
+  const [editingContent, setEditingContent] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -2338,7 +2215,7 @@ const CommentSection = ({ articleId }) => {
       const res = await axios.get(`/articles/${articleId}/comments`);
       setComments(res.data);
     } catch (err) {
-      console.error('Error fetching comments:', err);
+      console.error("Error fetching comments:", err);
     } finally {
       setLoading(false);
     }
@@ -2351,12 +2228,12 @@ const CommentSection = ({ articleId }) => {
       await axios.post(
         `/articles/${articleId}/comments`,
         { content: newComment },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
-      setNewComment('');
+      setNewComment("");
       fetchComments();
     } catch (err) {
-      console.error('Error posting comment:', err);
+      console.error("Error posting comment:", err);
     }
   };
 
@@ -2367,7 +2244,7 @@ const CommentSection = ({ articleId }) => {
       });
       fetchComments();
     } catch (err) {
-      console.error('Error deleting comment:', err);
+      console.error("Error deleting comment:", err);
     }
   };
 
@@ -2376,12 +2253,12 @@ const CommentSection = ({ articleId }) => {
       await axios.put(
         `/comments/${id}`,
         { content: editingContent },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       setEditingId(null);
       fetchComments();
     } catch (err) {
-      console.error('Error editing comment:', err);
+      console.error("Error editing comment:", err);
     }
   };
 
@@ -2434,27 +2311,32 @@ const CommentSection = ({ articleId }) => {
                   <>
                     <p className="text-gray-800 mb-1">{comment.content}</p>
                     <small className="text-gray-500 block">
-                      by <span className="font-medium">{comment.username || 'Unknown User'}</span>
+                      by{" "}
+                      <span className="font-medium">
+                        {comment.username || "Unknown User"}
+                      </span>
                     </small>
-                    {user && (user.id === comment.user_id || user.role === 'admin') && (
-                      <div className="flex gap-3 mt-2">
-                        <button
-                          onClick={() => {
-                            setEditingId(comment.id);
-                            setEditingContent(comment.content);
-                          }}
-                          className="text-yellow-600 hover:underline"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(comment.id)}
-                          className="text-red-600 hover:underline"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
+                    {user &&
+                      (user.id === comment.user_id ||
+                        user.role === "admin") && (
+                        <div className="flex gap-3 mt-2">
+                          <button
+                            onClick={() => {
+                              setEditingId(comment.id);
+                              setEditingContent(comment.content);
+                            }}
+                            className="text-yellow-600 hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(comment.id)}
+                            className="text-red-600 hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                   </>
                 )}
               </motion.li>
@@ -2490,20 +2372,18 @@ export default CommentSection;
 ============================================================
 FILE: frontend/src/components/Navbar.jsx
 ============================================================
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import {useAuth} from '../context/AuthContext';
+import React from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 function Navbar() {
-    const {user,logout} = useAuth(); 
-    const navigate = useNavigate();
-    const isLoggedIn = !!user;
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const isLoggedIn = !!user;
 
-    const handleLogout = () => {
-        logout();            // Clear user & session
-        navigate('/login');  // Redirect to login page
-    };
-
-    console.log('Navbar user:', user);
+  const handleLogout = () => {
+    logout(); // Clear user & session
+    navigate("/login"); // Redirect to login page
+  };
 
   return (
     <nav className="bg-gray-800 text-white px-6 py-4 flex justify-between items-center">
@@ -2511,8 +2391,12 @@ function Navbar() {
         <Link to="/">Blogging Platform</Link>
       </div>
       <div className="space-x-4">
-        <Link to="/" className="hover:underline">Home</Link>
-        <Link to="/articles" className="hover:underline">Articles</Link>
+        <Link to="/" className="hover:underline">
+          Home
+        </Link>
+        <Link to="/articles" className="hover:underline">
+          Articles
+        </Link>
         {isLoggedIn && (
           <Link
             to="/articles/new"
@@ -2523,19 +2407,35 @@ function Navbar() {
         )}
         {isLoggedIn ? (
           <>
+            <Link
+              to="/dashboard"
+              className="text-sm text-green-600 hover:underline"
+            >
+              Dashboard
+            </Link>
             {user?.id && (
-  <Link to={`/users/${user.id}`} className="text-sm text-blue-600 hover:underline">
-    View Profile
-  </Link>
-)}
-            <button onClick={handleLogout} className="bg-red-500 px-3 py-1 rounded hover:bg-red-600">
+              <Link
+                to={`/users/${user.id}`}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                View Profile
+              </Link>
+            )}
+            <button
+              onClick={handleLogout}
+              className="bg-red-500 px-3 py-1 rounded hover:bg-red-600"
+            >
               Logout
             </button>
           </>
         ) : (
           <>
-            <Link to="/login" className="hover:underline">Login</Link>
-            <Link to="/register" className="hover:underline">Register</Link>
+            <Link to="/login" className="hover:underline">
+              Login
+            </Link>
+            <Link to="/register" className="hover:underline">
+              Register
+            </Link>
           </>
         )}
       </div>
@@ -2547,9 +2447,29 @@ export default Navbar;
 
 
 ============================================================
+FILE: frontend/src/components/ProtectedRoute.jsx
+============================================================
+import React from "react";
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
+const ProtectedRoute = ({ children, requireAuth = true }) => {
+  const { user } = useAuth();
+
+  if (requireAuth && !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
+
+export default ProtectedRoute;
+
+
+============================================================
 FILE: frontend/src/context/AuthContext.jsx
 ============================================================
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 const AuthContext = createContext();
 
@@ -2561,8 +2481,8 @@ export const AuthProvider = ({ children }) => {
 
   // 🧠 Load from sessionStorage when app starts
   useEffect(() => {
-    const savedUser = sessionStorage.getItem('user');
-    const savedToken = sessionStorage.getItem('token');
+    const savedUser = sessionStorage.getItem("user");
+    const savedToken = sessionStorage.getItem("token");
 
     if (savedUser && savedToken) {
       setUser(JSON.parse(savedUser));
@@ -2576,8 +2496,8 @@ export const AuthProvider = ({ children }) => {
     setToken(tokenData);
 
     // Save in sessionStorage
-    sessionStorage.setItem('user', JSON.stringify(userData));
-    sessionStorage.setItem('token', tokenData);
+    sessionStorage.setItem("user", JSON.stringify(userData));
+    sessionStorage.setItem("token", tokenData);
   };
 
   // 🔓 Logout method
@@ -2599,40 +2519,155 @@ export const AuthProvider = ({ children }) => {
 FILE: frontend/src/pages/ArticleDetails.jsx
 ============================================================
 // pages/ArticleDetails.jsx
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import axios from '../utils/axiosInstance';
+import React, { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import axios from "../utils/axiosInstance";
+import { useAuth } from "../context/AuthContext";
+import { FaSpinner, FaEdit, FaTrash } from "react-icons/fa";
+import toast from "react-hot-toast";
+import CommentSection from "../components/CommentSection";
 
 const ArticleDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const { user, token } = useAuth();
   const [article, setArticle] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    axios.get(`/articles/${id}`)
-      .then(res => setArticle(res.data))
-      .catch(err => console.error('Error fetching article:', err));
+    const fetchArticle = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await axios.get(`/articles/${id}`);
+        setArticle(res.data);
+      } catch (err) {
+        console.error("Error fetching article:", err);
+        setError("Failed to load article. Please try again.");
+        toast.error("Failed to load article");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchArticle();
   }, [id]);
 
-  if (!article) return <p>Loading...</p>;
+  const handleDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete this article?")) {
+      return;
+    }
 
-  const coverUrl = article.cover
-    ? `http://localhost:5000/uploads/${article.cover}`
-    : null;
+    try {
+      await axios.delete(`/articles/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success("Article deleted successfully");
+      navigate("/articles");
+    } catch (err) {
+      console.error("Error deleting article:", err);
+      toast.error("Failed to delete article");
+    }
+  };
+
+  const isAuthor = user && article && user.id === article.user_id;
+  const isAdmin = user && user.role === "admin";
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <FaSpinner className="animate-spin text-3xl text-blue-600 mr-3" />
+        <span className="text-gray-600 text-lg">Loading article...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto py-10 px-4 text-center">
+        <p className="text-red-600 mb-4 text-lg">{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  if (!article) {
+    return (
+      <div className="max-w-4xl mx-auto py-10 px-4 text-center">
+        <p className="text-gray-600 text-lg">Article not found.</p>
+      </div>
+    );
+  }
+
+  const coverUrl = article.cover ? `/uploads/${article.cover}` : null;
 
   return (
     <div className="max-w-4xl mx-auto py-10 px-4">
-      {coverUrl && (
+      {/* Cover Image with Fallback */}
+      {coverUrl ? (
         <img
           src={coverUrl}
           alt="Cover"
           className="w-full max-h-[500px] object-cover mb-6 rounded shadow"
+          onError={(e) => {
+            e.target.style.display = "none";
+            e.target.nextSibling.style.display = "block";
+          }}
         />
-      )}
-      <h1 className="text-3xl font-bold mb-2">{article.title}</h1>
-      <p className="text-gray-500 mb-4">
-        {new Date(article.created_at).toLocaleDateString()}
-      </p>
-      <p className="text-lg text-gray-800 whitespace-pre-wrap">{article.content}</p>
+      ) : null}
+      <div
+        className="w-full h-64 bg-gray-200 mb-6 rounded shadow flex items-center justify-center"
+        style={{ display: coverUrl ? "none" : "flex" }}
+      >
+        <div className="text-center text-gray-500">
+          <div className="text-4xl mb-2">📄</div>
+          <p>No cover image</p>
+        </div>
+      </div>
+
+      {/* Article Header with Edit/Delete Buttons */}
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">{article.title}</h1>
+          <p className="text-gray-500">
+            By {article.author || "Unknown"} •{" "}
+            {new Date(article.created_at).toLocaleDateString()}
+          </p>
+        </div>
+        {(isAuthor || isAdmin) && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => navigate(`/articles/${id}/edit`)}
+              className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 flex items-center gap-1"
+            >
+              <FaEdit size={14} />
+              Edit
+            </button>
+            <button
+              onClick={handleDelete}
+              className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 flex items-center gap-1"
+            >
+              <FaTrash size={14} />
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Article Content */}
+      <div className="prose max-w-none mb-8">
+        <p className="text-lg text-gray-800 whitespace-pre-wrap">
+          {article.content}
+        </p>
+      </div>
+
+      {/* Comments Section */}
+      <CommentSection articleId={id} />
     </div>
   );
 };
@@ -2644,25 +2679,35 @@ export default ArticleDetails;
 FILE: frontend/src/pages/ArticleForm.jsx
 ============================================================
 // src/pages/ArticleForm.jsx
-import React, { useState, useEffect } from 'react';
-import axios from '../utils/axiosInstance';
-import { useNavigate, useParams } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import React, { useState, useEffect } from "react";
+import axios from "../utils/axiosInstance";
+import { useNavigate, useParams } from "react-router-dom";
+import toast from "react-hot-toast";
+import { FaSpinner, FaTimes } from "react-icons/fa";
+import { useAuth } from "../context/AuthContext";
 
-const categories = ['Technology', 'Lifestyle', 'Business', 'Education', 'Entertainment'];
+const categories = [
+  "Technology",
+  "Lifestyle",
+  "Business",
+  "Education",
+  "Entertainment",
+];
 
 const ArticleForm = () => {
   const { id } = useParams(); // for edit
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [category, setCategory] = useState('');
-  const [tagInput, setTagInput] = useState('');
+  const { token } = useAuth();
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [category, setCategory] = useState("");
+  const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [cover, setCover] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
-
-
+  const [currentCover, setCurrentCover] = useState(null);
+  const [removeCover, setRemoveCover] = useState(false);
 
   const navigate = useNavigate();
 
@@ -2675,10 +2720,14 @@ const ArticleForm = () => {
       setTitle(article.title);
       setContent(article.content);
       setCategory(article.category);
-      setTags(article.tags ? article.tags.split(',').map(tag => tag.trim()) : []);
+      setTags(
+        article.tags ? article.tags.split(",").map((tag) => tag.trim()) : [],
+      );
+      setCurrentCover(article.cover);
       setLoading(false);
     } catch (err) {
       console.error(err);
+      toast.error("Failed to load article");
       setLoading(false);
     }
   };
@@ -2688,59 +2737,79 @@ const ArticleForm = () => {
   }, [id]);
 
   const handleTagKeyDown = (e) => {
-    if (e.key === 'Enter' || e.key === ',') {
+    if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       if (tagInput.trim() && !tags.includes(tagInput.toLowerCase())) {
         setTags([...tags, tagInput.toLowerCase()]);
-        setTagInput('');
+        setTagInput("");
       }
     }
   };
 
   const removeTag = (tagToRemove) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
+    setTags(tags.filter((tag) => tag !== tagToRemove));
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-  const formData = new FormData();
-  formData.append('title', title);
-  formData.append('content', content);
-  formData.append('category', category);
-  tags.forEach((tag, i) => formData.append(`tags[${i}]`, tag));
-  if (cover) formData.append('cover', cover);
+    if (!title.trim() || !content.trim() || !category) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
 
-  // 🔍 Debug log to verify payload before sending
-  for (let [key, value] of formData.entries()) {
-    console.log(`${key}:`, value);
-  }
+    setSubmitting(true);
 
-  try {
-    const token = sessionStorage.getItem('token');
-    await axios.post('http://localhost:5000/api/articles', formData, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    toast.success('Article created!');
-  } catch (err) {
-    console.error(err);
-    toast.error('Failed to create article');
-  }
-};
+    try {
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("content", content);
+      formData.append("category", category);
+      tags.forEach((tag, i) => formData.append(`tags[${i}]`, tag));
+      if (cover) formData.append("cover", cover);
+      if (removeCover) formData.append("removeCover", "true");
 
+      if (id) {
+        // Update existing article
+        await axios.put(`/articles/${id}`, formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        toast.success("Article updated successfully!");
+      } else {
+        // Create new article
+        await axios.post("/articles", formData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        toast.success("Article created successfully!");
+      }
 
+      navigate("/articles");
+    } catch (err) {
+      console.error(err);
+      toast.error(id ? "Failed to update article" : "Failed to create article");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <h2 className="text-2xl font-bold mb-4">{id ? 'Edit' : 'New'} Article</h2>
+      <h2 className="text-2xl font-bold mb-4">{id ? "Edit" : "New"} Article</h2>
 
       {loading ? (
         <p>Loading article...</p>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-4" encType="multipart/form-data">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4"
+          encType="multipart/form-data"
+        >
           <input
             type="text"
             placeholder="Title"
@@ -2765,8 +2834,10 @@ const handleSubmit = async (e) => {
             required
           >
             <option value="">Select Category</option>
-            {categories.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
             ))}
           </select>
 
@@ -2798,34 +2869,82 @@ const handleSubmit = async (e) => {
             </div>
           </div>
           <div className="mb-4">
-  <label className="block mb-1 font-medium text-gray-700">Cover Image</label>
-  <input
-    type="file"
-    accept="image/*"
-    onChange={(e) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        setCover(file);
-        setPreviewUrl(URL.createObjectURL(file));
-      }
-    }}
-    className="border border-gray-300 rounded px-3 py-2 w-full"
-  />
-  {previewUrl && (
-    <img
-      src={previewUrl}
-      alt="Preview"
-      className="mt-3 w-full max-w-sm h-auto rounded shadow"
-    />
-  )}
-</div>
+            <label className="block mb-1 font-medium text-gray-700">
+              Cover Image
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  setCover(file);
+                  setPreviewUrl(URL.createObjectURL(file));
+                  setRemoveCover(false); // Reset remove flag when new file is selected
+                }
+              }}
+              className="border border-gray-300 rounded px-3 py-2 w-full"
+            />
 
+            {/* Current Cover Image (for editing) */}
+            {currentCover && !previewUrl && (
+              <div className="mt-3 relative">
+                <img
+                  src={`/uploads/${currentCover}`}
+                  alt="Current cover"
+                  className="w-full max-w-sm h-auto rounded shadow"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentCover(null);
+                    setRemoveCover(true);
+                  }}
+                  className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                  title="Remove cover image"
+                >
+                  <FaTimes size={12} />
+                </button>
+              </div>
+            )}
+
+            {/* New Cover Preview */}
+            {previewUrl && (
+              <div className="mt-3 relative">
+                <img
+                  src={previewUrl}
+                  alt="Preview"
+                  className="w-full max-w-sm h-auto rounded shadow"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCover(null);
+                    setPreviewUrl(null);
+                    setRemoveCover(false); // Reset remove flag when clearing new file
+                  }}
+                  className="absolute top-2 right-2 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                  title="Remove new cover image"
+                >
+                  <FaTimes size={12} />
+                </button>
+              </div>
+            )}
+          </div>
 
           <button
             type="submit"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            disabled={submitting}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {id ? 'Update' : 'Create'} Article
+            {submitting ? (
+              <>
+                <FaSpinner className="animate-spin" />
+                {id ? "Updating..." : "Creating..."}
+              </>
+            ) : (
+              <>{id ? "Update" : "Create"} Article</>
+            )}
           </button>
         </form>
       )}
@@ -2839,38 +2958,49 @@ export default ArticleForm;
 ============================================================
 FILE: frontend/src/pages/Articles.jsx
 ============================================================
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { Link } from "react-router-dom";
+import { FaSpinner } from "react-icons/fa";
+import toast from "react-hot-toast";
 
 function Articles() {
   const [articles, setArticles] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterTag, setFilterTag] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterTag, setFilterTag] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchArticles = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/articles');
+      setLoading(true);
+      setError(null);
+      const res = await axios.get("/api/articles");
       let filtered = res.data;
 
       // 🔍 Filter by search term (title or content)
       if (searchTerm.trim()) {
-        filtered = filtered.filter(article =>
-          article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          article.content.toLowerCase().includes(searchTerm.toLowerCase())
+        filtered = filtered.filter(
+          (article) =>
+            article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            article.content.toLowerCase().includes(searchTerm.toLowerCase()),
         );
       }
 
       // 🏷️ Filter by tag
       if (filterTag.trim()) {
-        filtered = filtered.filter(article =>
-          article.tags?.toLowerCase().includes(filterTag.toLowerCase())
+        filtered = filtered.filter((article) =>
+          article.tags?.toLowerCase().includes(filterTag.toLowerCase()),
         );
       }
 
       setArticles(filtered);
     } catch (err) {
-      console.error('Error fetching articles:', err);
+      console.error("Error fetching articles:", err);
+      setError("Failed to load articles. Please try again.");
+      toast.error("Failed to load articles");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -2912,15 +3042,31 @@ function Articles() {
         </button>
       </form>
 
-      {articles.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <FaSpinner className="animate-spin text-2xl text-blue-600 mr-2" />
+          <span className="text-gray-600">Loading articles...</span>
+        </div>
+      ) : error ? (
+        <div className="text-center py-8">
+          <p className="text-red-600 mb-4">{error}</p>
+          <button
+            onClick={fetchArticles}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Try Again
+          </button>
+        </div>
+      ) : articles.length === 0 ? (
         <p className="text-gray-600 text-center">No articles found.</p>
       ) : (
         <div className="space-y-6">
-          {articles.map(article => (
+          {articles.map((article) => (
             <div key={article.id} className="bg-white p-6 rounded shadow-md">
               <h3 className="text-xl font-semibold">{article.title}</h3>
               <p className="text-sm text-gray-500">
-                By {article.author || 'Unknown'} • {new Date(article.created_at).toLocaleDateString()}
+                By {article.author || "Unknown"} •{" "}
+                {new Date(article.created_at).toLocaleDateString()}
               </p>
               <p className="mt-2 text-gray-700">
                 {article.content.slice(0, 150)}...
@@ -2945,15 +3091,22 @@ export default Articles;
 ============================================================
 FILE: frontend/src/pages/Home.jsx
 ============================================================
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React from "react";
+import { Link } from "react-router-dom";
 
 function Home() {
   return (
     <div className="text-center py-20">
-      <h1 className="text-4xl font-bold text-gray-800 mb-4">Welcome to the Blogging Platform</h1>
-      <p className="text-gray-600 mb-6">Share your thoughts, read great content, and join the community.</p>
-      <Link to="/articles" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded">
+      <h1 className="text-4xl font-bold text-gray-800 mb-4">
+        Welcome to the Blogging Platform
+      </h1>
+      <p className="text-gray-600 mb-6">
+        Share your thoughts, read great content, and join the community.
+      </p>
+      <Link
+        to="/articles"
+        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded"
+      >
         Browse Articles
       </Link>
     </div>
@@ -2966,37 +3119,36 @@ export default Home;
 ============================================================
 FILE: frontend/src/pages/Login.jsx
 ============================================================
-import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import React, { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const navigate = useNavigate();
   const { login } = useAuth(); // ✅ use context
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/login', { email, password });
-      
-      console.log('USER FROM LOGIN:', res.data.user);
-console.log('TOKEN FROM LOGIN:', res.data.token);
+      const res = await axios.post("/api/auth/login", {
+        email,
+        password,
+      });
+
       // ✅ Use context login function
       login(res.data.user, res.data.token);
-      console.log('Login response:', res.data);
 
       // ✅ Navigate to article list or homepage
-      navigate('/');
+      navigate("/");
     } catch (err) {
-      console.error('Login Error:', err);
-      setError(err.response?.data?.message || 'Login failed');
-      
+      console.error("Login Error:", err);
+      setError(err.response?.data?.message || "Login failed");
     }
   };
 
@@ -3021,7 +3173,10 @@ console.log('TOKEN FROM LOGIN:', res.data.token);
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded">
+        <button
+          type="submit"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded"
+        >
           Login
         </button>
       </form>
@@ -3035,20 +3190,20 @@ export default Login;
 ============================================================
 FILE: frontend/src/pages/Register.jsx
 ============================================================
-import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 function Register() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
-    username: '',
-    email: '',
-    password: '',
+    username: "",
+    email: "",
+    password: "",
   });
 
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -3056,15 +3211,15 @@ function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/register', form);
+      const res = await axios.post("/api/auth/register", form);
       if (res.status === 201) {
-        navigate('/login');
+        navigate("/login");
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed');
+      setError(err.response?.data?.message || "Registration failed");
     }
   };
 
@@ -3120,32 +3275,254 @@ export default Register;
 
 
 ============================================================
+FILE: frontend/src/pages/UserDashboard.jsx
+============================================================
+import React, { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { Link } from "react-router-dom";
+import { FaSpinner, FaEdit, FaTrash, FaEye } from "react-icons/fa";
+import toast from "react-hot-toast";
+import axios from "../utils/axiosInstance";
+
+const UserDashboard = () => {
+  const { user, token } = useAuth();
+  const [articles, setArticles] = useState([]);
+  const [comments, setComments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("articles");
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      const [articlesRes, profileRes] = await Promise.all([
+        axios.get(`/users/${user.id}/articles`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        axios.get(`/users/${user.id}/profile`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      setArticles(articlesRes.data || []);
+      setComments(profileRes.data.comments || []);
+    } catch (err) {
+      console.error("Error fetching user data:", err);
+      toast.error("Failed to load dashboard data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteArticle = async (articleId) => {
+    if (!window.confirm("Are you sure you want to delete this article?")) {
+      return;
+    }
+
+    try {
+      await axios.delete(`/articles/${articleId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success("Article deleted successfully");
+      fetchUserData(); // Refresh the list
+    } catch (err) {
+      console.error("Error deleting article:", err);
+      toast.error("Failed to delete article");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <FaSpinner className="animate-spin text-3xl text-blue-600 mr-3" />
+        <span className="text-gray-600 text-lg">Loading dashboard...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-6xl mx-auto py-8 px-4">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
+        <p className="text-gray-600">Welcome back, {user.username}!</p>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex border-b border-gray-200 mb-6">
+        <button
+          onClick={() => setActiveTab("articles")}
+          className={`px-4 py-2 font-medium ${
+            activeTab === "articles"
+              ? "text-blue-600 border-b-2 border-blue-600"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          My Articles ({articles.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("comments")}
+          className={`px-4 py-2 font-medium ${
+            activeTab === "comments"
+              ? "text-blue-600 border-b-2 border-blue-600"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          My Comments ({comments.length})
+        </button>
+      </div>
+
+      {/* Articles Tab */}
+      {activeTab === "articles" && (
+        <div>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-semibold">My Articles</h2>
+            <Link
+              to="/articles/new"
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              Write New Article
+            </Link>
+          </div>
+
+          {articles.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500 mb-4">
+                You haven't written any articles yet.
+              </p>
+              <Link
+                to="/articles/new"
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Write Your First Article
+              </Link>
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {articles.map((article) => (
+                <div
+                  key={article.id}
+                  className="bg-white rounded-lg shadow-md overflow-hidden"
+                >
+                  {article.cover && (
+                    <img
+                      src={`/uploads/${article.cover}`}
+                      alt="Cover"
+                      className="w-full h-48 object-cover"
+                    />
+                  )}
+                  <div className="p-4">
+                    <h3 className="text-lg font-semibold mb-2">
+                      {article.title}
+                    </h3>
+                    <p className="text-gray-600 text-sm mb-3">
+                      {new Date(article.created_at).toLocaleDateString()}
+                    </p>
+                    <p className="text-gray-700 mb-4 line-clamp-3">
+                      {article.content.substring(0, 100)}...
+                    </p>
+                    <div className="flex gap-2">
+                      <Link
+                        to={`/articles/${article.id}`}
+                        className="flex items-center gap-1 text-blue-600 hover:text-blue-700"
+                      >
+                        <FaEye size={14} />
+                        View
+                      </Link>
+                      <Link
+                        to={`/articles/${article.id}/edit`}
+                        className="flex items-center gap-1 text-green-600 hover:text-green-700"
+                      >
+                        <FaEdit size={14} />
+                        Edit
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteArticle(article.id)}
+                        className="flex items-center gap-1 text-red-600 hover:text-red-700"
+                      >
+                        <FaTrash size={14} />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Comments Tab */}
+      {activeTab === "comments" && (
+        <div>
+          <h2 className="text-2xl font-semibold mb-6">My Comments</h2>
+
+          {comments.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500">
+                You haven't made any comments yet.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {comments.map((comment) => (
+                <div
+                  key={comment.id}
+                  className="bg-white rounded-lg shadow-md p-4"
+                >
+                  <p className="text-gray-800 mb-2">{comment.content}</p>
+                  <div className="flex justify-between items-center text-sm text-gray-500">
+                    <span>
+                      On article:{" "}
+                      {comment.article_title ||
+                        `Article #${comment.article_id}`}
+                    </span>
+                    <span>
+                      {new Date(comment.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default UserDashboard;
+
+
+============================================================
 FILE: frontend/src/pages/UserProfile.jsx
 ============================================================
 // src/pages/UserProfile.jsx
-import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { fetchUserProfile } from '../api/user';
-import { useAuth } from '../context/AuthContext';
-import ArticleCard from '../components/ArticleCard';
+import React, { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { fetchUserProfile } from "../api/user";
+import { useAuth } from "../context/AuthContext";
+import ArticleCard from "../components/ArticleCard";
 
 const UserProfile = () => {
   const { userid } = useParams();
   const { token } = useAuth();
   const [data, setData] = useState({ articles: [], comments: [] });
 
-useEffect(() => {
-  const loadProfile = async () => {
-    try {
-      const res = await fetchUserProfile(userid, token);
-      const { articles = [], comments = [] } = res.data || {};
-      setData({ articles, comments });
-    } catch (err) {
-      console.error(err);
-    }
-  };
-  loadProfile();
-}, [userid, token]);
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const res = await fetchUserProfile(userid, token);
+        const { articles = [], comments = [] } = res.data || {};
+        setData({ articles, comments });
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadProfile();
+  }, [userid, token]);
 
   return (
     <div className="max-w-4xl mx-auto mt-10">
@@ -3183,18 +3560,18 @@ export default UserProfile;
 FILE: frontend/src/utils/axiosInstance.js
 ============================================================
 // src/utils/axiosInstance.js
-import axios from 'axios';
+import axios from "axios";
 
 const axiosInstance = axios.create({
-  baseURL: 'http://localhost:5000/api', // Adjust if your backend uses a different port
+  baseURL: process.env.REACT_APP_API_URL || "/api", // Use environment variable or relative URL
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
 // Automatically add token if available
 axiosInstance.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -3250,16 +3627,18 @@ FILE: frontend/src/App.css
 ============================================================
 FILE: frontend/src/App.js
 ============================================================
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Home from './pages/Home';
-import Login from './pages/Login';
-import Articles from './pages/Articles';
-import Register from './pages/Register';
-import Navbar from './components/Navbar';
-import ArticleDetails from './pages/ArticleDetails';
-import ArticleForm  from './pages/ArticleForm';
-import UserProfile from './pages/UserProfile';
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
+import Login from "./pages/Login";
+import Articles from "./pages/Articles";
+import Register from "./pages/Register";
+import Navbar from "./components/Navbar";
+import ArticleDetails from "./pages/ArticleDetails";
+import ArticleForm from "./pages/ArticleForm";
+import UserProfile from "./pages/UserProfile";
+import UserDashboard from "./pages/UserDashboard";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
@@ -3271,10 +3650,39 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/articles" element={<Articles />} />
-          <Route path="/articles/new" element={<ArticleForm />} />
-          <Route path="/articles/:id/edit" element={<ArticleForm />} />
+          <Route
+            path="/articles/new"
+            element={
+              <ProtectedRoute>
+                <ArticleForm />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/articles/:id/edit"
+            element={
+              <ProtectedRoute>
+                <ArticleForm />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/articles/:id" element={<ArticleDetails />} />
-          <Route path="/users/:userid" element={<UserProfile />} />
+          <Route
+            path="/users/:userid"
+            element={
+              <ProtectedRoute>
+                <UserProfile />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <UserDashboard />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </div>
     </Router>
@@ -3287,10 +3695,10 @@ export default App;
 ============================================================
 FILE: frontend/src/App.test.js
 ============================================================
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import { render, screen } from "@testing-library/react";
+import App from "./App";
 
-test('renders learn react link', () => {
+test("renders learn react link", () => {
   render(<App />);
   const linkElement = screen.getByText(/learn react/i);
   expect(linkElement).toBeInTheDocument();
@@ -3304,24 +3712,25 @@ FILE: frontend/src/index.css
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
+
 ============================================================
 FILE: frontend/src/index.js
 ============================================================
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import { AuthProvider } from './context/AuthContext';
-import { Toaster } from 'react-hot-toast';
-import './index.css';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import { AuthProvider } from "./context/AuthContext";
+import { Toaster } from "react-hot-toast";
+import "./index.css";
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
+const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
     <AuthProvider>
-        <App />
-        <Toaster />
+      <App />
+      <Toaster />
     </AuthProvider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
 
 
@@ -3333,9 +3742,9 @@ FILE: frontend/src/logo.svg
 ============================================================
 FILE: frontend/src/reportWebVitals.js
 ============================================================
-const reportWebVitals = onPerfEntry => {
+const reportWebVitals = (onPerfEntry) => {
   if (onPerfEntry && onPerfEntry instanceof Function) {
-    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+    import("web-vitals").then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
       getCLS(onPerfEntry);
       getFID(onPerfEntry);
       getFCP(onPerfEntry);
@@ -3355,7 +3764,7 @@ FILE: frontend/src/setupTests.js
 // allows you to do things like:
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
-import '@testing-library/jest-dom';
+import "@testing-library/jest-dom";
 
 
 ============================================================
@@ -4597,6 +5006,82 @@ module.exports = {
 }
 
 ============================================================
+FILE: frontend/eslint.config.js
+============================================================
+const js = require("@eslint/js");
+const globals = require("globals");
+const reactHooks = require("eslint-plugin-react-hooks");
+const react = require("eslint-plugin-react");
+
+module.exports = [
+  js.configs.recommended,
+  {
+    files: ["src/**/*.{js,jsx}"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.es2021,
+      },
+      ecmaVersion: 2022,
+      sourceType: "module",
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
+    plugins: {
+      react,
+      "react-hooks": reactHooks,
+    },
+    settings: {
+      react: {
+        version: "detect",
+      },
+    },
+    rules: {
+      ...react.configs.recommended.rules,
+      ...reactHooks.configs.recommended.rules,
+      "no-unused-vars": "warn",
+      "no-console": "warn",
+      "prefer-const": "error",
+      "no-var": "error",
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
+    },
+  },
+  {
+    files: ["src/**/*.test.{js,jsx}", "src/**/*.spec.{js,jsx}"],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.es2021,
+        ...globals.jest,
+      },
+    },
+  },
+  {
+    ignores: ["node_modules/**", "build/**", "public/**"],
+  },
+];
+
+
+============================================================
+FILE: frontend/eslint.config.mjs
+============================================================
+import js from "@eslint/js";
+import globals from "globals";
+import pluginReact from "eslint-plugin-react";
+import { defineConfig } from "eslint/config";
+
+export default defineConfig([
+  { files: ["**/*.{js,mjs,cjs,jsx}"], plugins: { js }, extends: ["js/recommended"], languageOptions: { globals: globals.browser } },
+  { files: ["**/*.js"], languageOptions: { sourceType: "commonjs" } },
+  pluginReact.configs.flat.recommended,
+]);
+
+
+============================================================
 FILE: frontend/package.json
 ============================================================
 {
@@ -4622,14 +5107,13 @@ FILE: frontend/package.json
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,md}\"",
+    "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,json,css,md}\"",
+    "lint": "eslint \"src/**/*.{js,jsx}\" --fix",
+    "lint:check": "eslint \"src/**/*.{js,jsx}\""
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
+  "proxy": "http://localhost:5000",
   "browserslist": {
     "production": [
       ">0.2%",
@@ -4643,8 +5127,15 @@ FILE: frontend/package.json
     ]
   },
   "devDependencies": {
+    "@eslint/js": "^9.32.0",
     "autoprefixer": "^10.4.21",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^16.3.0",
     "postcss": "^8.5.6",
+    "prettier": "^3.6.2",
     "tailwindcss": "^3.4.17"
   }
 }
@@ -4654,11 +5145,9 @@ FILE: frontend/package.json
 FILE: frontend/postcss.config.js
 ============================================================
 module.exports = {
-  plugins: [
-    require('tailwindcss'),
-    require('autoprefixer'),
-  ],
-}
+  plugins: [require("tailwindcss"), require("autoprefixer")],
+};
+
 
 ============================================================
 FILE: frontend/README.md
@@ -4740,11 +5229,405 @@ FILE: frontend/tailwind.config.js
 ============================================================
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: [
-    "./src/**/*.{js,jsx,ts,tsx}",
-  ],
+  content: ["./src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {},
   },
   plugins: [],
+};
+
+
+============================================================
+FILE: eslint.config.js
+============================================================
+const js = require('@eslint/js');
+const globals = require('globals');
+
+module.exports = [
+  js.configs.recommended,
+  {
+    files: ['backend/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.jest,
+      },
+      ecmaVersion: 2022,
+      sourceType: 'module',
+    },
+    rules: {
+      'no-unused-vars': 'warn',
+      'no-console': 'off',
+      'prefer-const': 'error',
+      'no-var': 'error',
+    },
+  },
+  {
+    files: ['frontend/src/**/*.{js,jsx}'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.es2021,
+      },
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
+    rules: {
+      'no-unused-vars': 'warn',
+      'no-console': 'warn',
+      'prefer-const': 'error',
+      'no-var': 'error',
+    },
+  },
+  {
+    ignores: [
+      'node_modules/**',
+      'coverage/**',
+      'uploads/**',
+      'build/**',
+      'dist/**',
+      'frontend/build/**',
+      'frontend/public/**',
+    ],
+  },
+];
+
+
+============================================================
+FILE: LICENSE
+============================================================
+MIT License
+
+Copyright (c) 2024 Blogging Platform
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE. 
+
+============================================================
+FILE: package.json
+============================================================
+{
+  "scripts": {
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
+    "lint": "eslint \"**/*.{js,jsx}\" --fix",
+    "lint:check": "eslint \"**/*.{js,jsx}\"",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "build": "cd frontend && npm run build",
+    "test": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test"
+  },
+  "devDependencies": {
+    "eslint": "^9.32.0",
+    "prettier": "^3.6.2",
+    "concurrently": "^8.2.2"
+  }
 }
+
+
+============================================================
+FILE: README.md
+============================================================
+# Blogging Platform
+
+A full-stack blogging platform built with React.js, Node.js, Express.js, and MySQL. Features include user authentication, article management, comments, image uploads, and a modern responsive UI.
+
+## 🚀 Features
+
+### Core Features
+
+- **User Authentication**: Register, login, and JWT-based session management
+- **Article Management**: Create, read, update, and delete articles
+- **Image Uploads**: Cover image support with file validation
+- **Comments System**: Add, edit, and delete comments on articles
+- **User Profiles**: View user profiles with their articles and comments
+- **User Dashboard**: Personal dashboard for managing articles and comments
+
+### UI/UX Features
+
+- **Responsive Design**: Works on desktop, tablet, and mobile
+- **Loading States**: Smooth loading indicators throughout the app
+- **Error Handling**: Comprehensive error messages and user feedback
+- **Toast Notifications**: Success and error notifications
+- **Modern UI**: Clean, modern interface with Tailwind CSS
+- **Image Fallbacks**: Placeholder images for missing cover images
+
+### Security Features
+
+- **JWT Authentication**: Secure token-based authentication
+- **Route Protection**: Protected routes for authenticated users
+- **Input Validation**: Server-side validation for all inputs
+- **File Upload Security**: File type and size validation
+- **Authorization**: Role-based access control (user/admin)
+
+## 📁 Project Structure
+
+```
+blogging-platform/
+├── backend/                 # Node.js/Express.js backend
+│   ├── config/             # Database and JWT configuration
+│   ├── controllers/        # Business logic controllers
+│   ├── middlewares/        # Authentication and validation
+│   ├── models/             # Data models
+│   ├── routes/             # API route definitions
+│   ├── uploads/            # File upload storage
+│   ├── utils/              # Utility functions
+│   └── tests/              # Backend tests
+├── frontend/               # React.js frontend
+│   ├── src/
+│   │   ├── api/            # API service functions
+│   │   ├── components/     # Reusable UI components
+│   │   ├── context/        # React context (AuthContext)
+│   │   ├── pages/          # Page components
+│   │   ├── services/       # API service layer
+│   │   └── utils/          # Utility functions
+│   └── public/             # Static assets
+└── database/               # Database schema and migrations
+```
+
+## 🛠️ Technology Stack
+
+### Backend
+
+- **Node.js** - JavaScript runtime
+- **Express.js** - Web framework
+- **MySQL** - Database
+- **JWT** - Authentication
+- **Multer** - File upload handling
+- **bcryptjs** - Password hashing
+- **Jest** - Testing framework
+
+### Frontend
+
+- **React.js** - UI library
+- **React Router** - Client-side routing
+- **Tailwind CSS** - Styling framework
+- **Axios** - HTTP client
+- **React Hot Toast** - Notifications
+- **React Icons** - Icon library
+- **Framer Motion** - Animations
+
+## 📋 Prerequisites
+
+- Node.js (v14 or higher)
+- MySQL (v8.0 or higher)
+- npm or yarn
+
+## 🔧 Installation & Setup
+
+### 1. Clone the Repository
+
+```bash
+git clone <repository-url>
+cd blogging-platform
+```
+
+### 2. Backend Setup
+
+```bash
+cd backend
+npm install
+```
+
+Create a `.env` file in the backend directory:
+
+```env
+# Database Configuration
+DB_HOST=localhost
+DB_USER=your_db_user
+DB_PASS=your_db_password
+DB_NAME=blog_db
+
+# JWT Configuration
+JWT_SECRET=your_super_secret_jwt_key_here
+
+# Server Configuration
+PORT=5000
+NODE_ENV=development
+
+# Frontend URL (for CORS)
+FRONTEND_URL=http://localhost:3000
+```
+
+### 3. Database Setup
+
+```bash
+# Create the database
+mysql -u root -p
+CREATE DATABASE blog_db;
+USE blog_db;
+
+# Run the initialization script
+source database/init.sql;
+```
+
+### 4. Frontend Setup
+
+```bash
+cd frontend
+npm install
+```
+
+### 5. Start the Application
+
+**Backend:**
+
+```bash
+cd backend
+npm run dev
+```
+
+**Frontend:**
+
+```bash
+cd frontend
+npm start
+```
+
+The application will be available at:
+
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:5000
+
+## 📚 API Documentation
+
+### Authentication Endpoints
+
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
+
+### Article Endpoints
+
+- `GET /api/articles` - Get all articles (with search/filter)
+- `POST /api/articles` - Create article (requires auth)
+- `GET /api/articles/:id` - Get specific article
+- `PUT /api/articles/:id` - Update article (requires auth)
+- `DELETE /api/articles/:id` - Delete article (requires auth)
+
+### Comment Endpoints
+
+- `POST /api/articles/:id/comments` - Add comment (requires auth)
+- `GET /api/articles/:id/comments` - Get article comments
+- `PUT /api/comments/:id` - Edit comment (requires auth)
+- `DELETE /api/comments/:id` - Delete comment (requires auth)
+
+### User Endpoints
+
+- `GET /api/users/:id/profile` - Get user profile (requires auth)
+- `GET /api/users/:id/articles` - Get user's articles (requires auth)
+
+## 🧪 Testing
+
+### Backend Tests
+
+```bash
+cd backend
+npm test
+```
+
+### Frontend Tests
+
+```bash
+cd frontend
+npm test
+```
+
+## 🚀 Deployment
+
+### Backend Deployment
+
+1. Set up environment variables for production in `.env`:
+   ```env
+   NODE_ENV=production
+   DB_HOST=your_production_db_host
+   DB_USER=your_production_db_user
+   DB_PASS=your_production_db_password
+   DB_NAME=your_production_db_name
+   JWT_SECRET=your_production_jwt_secret
+   PORT=5000
+   FRONTEND_URL=https://your-frontend-domain.com
+   ```
+2. Install dependencies: `npm install --production`
+3. Start the server: `npm start`
+
+### Frontend Deployment
+
+1. Create `.env` file with production API URL:
+   ```env
+   REACT_APP_API_URL=https://your-api-domain.com/api
+   ```
+2. Build the application: `npm run build`
+3. Deploy the `build` folder to your hosting service (Netlify, Vercel, etc.)
+
+### Same-Domain Deployment (Recommended)
+
+For better security and performance, deploy both frontend and backend on the same domain:
+
+1. Backend serves API at `/api/*`
+2. Frontend serves static files at root
+3. Use relative URLs: `REACT_APP_API_URL=/api`
+
+## 🔒 Security Considerations
+
+- JWT tokens expire after 24 hours
+- Passwords are hashed using bcrypt
+- File uploads are validated for type and size
+- CORS is configured for security
+- Input validation on both frontend and backend
+- SQL injection protection through parameterized queries
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🐛 Known Issues
+
+- None currently reported
+
+## 🔮 Future Enhancements
+
+- [ ] Real-time notifications
+- [ ] Rich text editor for articles
+- [ ] Image optimization and compression
+- [ ] Social media sharing
+- [ ] Article categories and tags management
+- [ ] User roles and permissions
+- [ ] Search functionality with filters
+- [ ] Pagination for articles and comments
+- [ ] Email notifications
+- [ ] Dark mode theme
+
+## 📞 Support
+
+For support and questions, please open an issue in the repository.
