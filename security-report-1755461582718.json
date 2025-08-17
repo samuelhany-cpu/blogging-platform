@@ -1,0 +1,719 @@
+{
+  "timestamp": "2025-08-17T20:13:02.717Z",
+  "summary": {
+    "totalTests": 116,
+    "passed": 53,
+    "failed": 0,
+    "warnings": 63,
+    "critical": 0,
+    "grade": "F"
+  },
+  "details": [
+    {
+      "timestamp": "2025-08-17T20:12:40.261Z",
+      "level": "info",
+      "message": "🔧 Setting up test environment...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.593Z",
+      "level": "warn",
+      "message": "Could not create test user - some tests will be limited",
+      "details": {
+        "error": "Login failed",
+        "code": "LOGIN_ERROR"
+      }
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.595Z",
+      "level": "info",
+      "message": "🛡️ Testing Security Headers...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.631Z",
+      "level": "pass",
+      "message": "HSTS header present: max-age=31536000; includeSubDomains; preload",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.632Z",
+      "level": "pass",
+      "message": "X-Content-Type-Options header present: nosniff",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.632Z",
+      "level": "pass",
+      "message": "X-Frame-Options header present: DENY",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.633Z",
+      "level": "pass",
+      "message": "CSP header present: default-src 'self';style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;font-src 'self' https://fonts.gstatic.com;img-src 'self' data: https:;script-src 'self';connect-src 'self';frame-src 'none';object-src 'none';media-src 'self';manifest-src 'self';base-uri 'self';form-action 'self';frame-ancestors 'self';script-src-attr 'none';upgrade-insecure-requests",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.633Z",
+      "level": "pass",
+      "message": "X-XSS-Protection header present: 1; mode=block",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.633Z",
+      "level": "pass",
+      "message": "Referrer-Policy header present: no-referrer",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.634Z",
+      "level": "warn",
+      "message": "Permissions-Policy header missing - recommended for enhanced security",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.634Z",
+      "level": "pass",
+      "message": "X-Permitted-Cross-Domain-Policies header present: none",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.634Z",
+      "level": "pass",
+      "message": "Server header properly hidden",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.635Z",
+      "level": "pass",
+      "message": "X-Powered-By header properly hidden",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.635Z",
+      "level": "info",
+      "message": "Security Headers Grade: A (7/10)",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.636Z",
+      "level": "info",
+      "message": "🚦 Testing Rate Limiting...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.636Z",
+      "level": "info",
+      "message": "Skipping rate limiting test (--skip-destructive flag)",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.637Z",
+      "level": "info",
+      "message": "🔍 Testing Input Validation & Sanitization...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.637Z",
+      "level": "info",
+      "message": "Testing POST /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.754Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.807Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.821Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.880Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.891Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.907Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.922Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.937Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.955Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.969Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.984Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:41.998Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.011Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.025Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.038Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.051Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.056Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.065Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.096Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.105Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.117Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.136Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.144Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.152Z",
+      "level": "pass",
+      "message": "Auth protection working for /api/articles",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.153Z",
+      "level": "info",
+      "message": "Testing POST /api/auth/login",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.184Z",
+      "level": "pass",
+      "message": "Input validation working - rejected malicious payload: <script>alert(\"xss\")...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.210Z",
+      "level": "pass",
+      "message": "Input validation working - rejected malicious payload: \"><script>alert(1)</...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.225Z",
+      "level": "pass",
+      "message": "Input validation working - rejected malicious payload: javascript:alert(\"xs...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.268Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.280Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.290Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.304Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.316Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.326Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.335Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.344Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.352Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.363Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.373Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.384Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.400Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.413Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.425Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.454Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.466Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.477Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.497Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:42.517Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:43.030Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/login",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:43.031Z",
+      "level": "info",
+      "message": "Testing POST /api/auth/register",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:43.554Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:44.079Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:44.589Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:45.126Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:45.636Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:46.144Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:46.652Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:47.162Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:47.676Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:48.187Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:48.702Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:49.209Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:49.716Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:50.226Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:50.735Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:51.243Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:51.751Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:52.264Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:52.778Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:53.290Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:53.798Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:54.311Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:54.824Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:55.335Z",
+      "level": "warn",
+      "message": "Unexpected response for /api/auth/register",
+      "details": 429
+    },
+    {
+      "timestamp": "2025-08-17T20:12:55.337Z",
+      "level": "info",
+      "message": "📁 Testing File Upload Security...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:55.338Z",
+      "level": "warn",
+      "message": "Skipping file upload tests - no auth token",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:55.338Z",
+      "level": "info",
+      "message": "🔐 Testing Authentication Security...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:55.859Z",
+      "level": "pass",
+      "message": "Invalid token properly rejected: invalid.token.here...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:56.372Z",
+      "level": "pass",
+      "message": "Invalid token properly rejected: Bearer invalid...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:56.892Z",
+      "level": "pass",
+      "message": "Invalid token properly rejected: eyJhbGciOiJIUzI1NiIs...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:57.409Z",
+      "level": "pass",
+      "message": "Invalid token properly rejected: ...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:57.925Z",
+      "level": "pass",
+      "message": "Invalid token properly rejected: null...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:58.442Z",
+      "level": "pass",
+      "message": "Invalid token properly rejected: undefined...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:58.951Z",
+      "level": "pass",
+      "message": "Missing Authorization header properly rejected",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:58.951Z",
+      "level": "info",
+      "message": "🌐 Testing CORS Configuration...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:59.558Z",
+      "level": "pass",
+      "message": "CORS blocking malicious origin: http://evil.com",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:59.582Z",
+      "level": "pass",
+      "message": "CORS blocking malicious origin: https://attacker.evil.com",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:59.586Z",
+      "level": "pass",
+      "message": "CORS blocking malicious origin: http://localhost:8080",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:59.590Z",
+      "level": "pass",
+      "message": "CORS blocking malicious origin: null",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:59.594Z",
+      "level": "pass",
+      "message": "CORS blocking malicious origin: *",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:12:59.594Z",
+      "level": "info",
+      "message": "🚨 Testing Error Handling & Information Disclosure...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:13:00.109Z",
+      "level": "pass",
+      "message": "Error handling secure for /api/nonexistent",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:13:00.651Z",
+      "level": "pass",
+      "message": "Error handling secure for /api/articles/999999",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:13:01.690Z",
+      "level": "info",
+      "message": "🔒 Testing SSL/TLS Configuration...",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:13:02.195Z",
+      "level": "warn",
+      "message": "Could not test HTTP redirect",
+      "details": "Request failed with status code 404"
+    },
+    {
+      "timestamp": "2025-08-17T20:13:02.716Z",
+      "level": "pass",
+      "message": "HSTS properly configured with max-age: 31536000",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:13:02.717Z",
+      "level": "pass",
+      "message": "HSTS includes subdomains",
+      "details": null
+    },
+    {
+      "timestamp": "2025-08-17T20:13:02.717Z",
+      "level": "pass",
+      "message": "HSTS preload enabled",
+      "details": null
+    }
+  ],
+  "recommendations": [
+    "⚠️ Review and address security warnings for enhanced protection",
+    "🔄 Run security tests regularly as part of CI/CD pipeline",
+    "📚 Keep security dependencies up to date",
+    "🛡️ Consider implementing Web Application Firewall (WAF)",
+    "📋 Schedule regular penetration testing"
+  ]
+}
